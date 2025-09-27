@@ -1,6 +1,6 @@
 
 
-# Incoming object
+# Campaign Object
 ## schema
 ```json
 {
