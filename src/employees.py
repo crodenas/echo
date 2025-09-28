@@ -2,18 +2,18 @@
 
 from typing import Optional
 from data import db
-from models import Worker
+from models import Employee
 
 
 employee_db = db.read_json_db("data/WorkerObjects.json")
 
 
-def get_by_system_id(system_id: str) -> Optional[Worker]:
+def get_by_system_id(system_id: str) -> Optional[Employee]:
     """Get a Worker by their SystemId."""
     for emp in employee_db:
         if emp["SystemId"] == system_id:
-            return Worker(**emp)
+            return Employee(**emp)
     return None
 
 
-__all__ = ["Worker", "get_by_system_id"]
+__all__ = ["Employee", "get_by_system_id"]

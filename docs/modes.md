@@ -8,11 +8,6 @@ campaign - Represents a sequence of cycles.  The objects in a campaign are defin
 (Overlapping cycles is maybe technically possible but need to think what would happen)
 
 
-# Assumptions
-- A team already has a source of truth that contains their inventory
-- ECHO needs a read only view of that data that is updated by Team's process that already exists
-- Depending on what metadata is included in view will dictact the resolution on knowing to what extent a record is verified
-
 
 
 # SVT - Start email campaign at regular intervals which must be longer than the escalation cycle

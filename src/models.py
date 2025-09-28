@@ -5,7 +5,7 @@ from typing import Optional
 from pydantic import BaseModel, Field, HttpUrl
 
 
-class Worker(BaseModel):
+class Employee(BaseModel):
     """
     Worker object representing an employee.
 
@@ -24,7 +24,7 @@ class Worker(BaseModel):
     JobTitle: str = Field(..., description="Worker's job title")
 
 
-class CampaignObject(BaseModel):
+class Resource(BaseModel):
     """
     Campaign Object representing a data object that can be tracked and verified.
 
@@ -63,7 +63,7 @@ class CampaignObject(BaseModel):
     )
 
 
-class EchoObject(CampaignObject):
+class Reviewable(Resource):
     """
     Campaign Object with ECHO metadata for notification tracking.
 
@@ -96,7 +96,7 @@ class EchoObject(CampaignObject):
     )
 
 
-class OutgoingNotification(BaseModel):
+class Notification(BaseModel):
     """
     Outgoing Notification object for sending notifications to recipients.
 
@@ -122,9 +122,9 @@ class OutgoingNotification(BaseModel):
 
 
 # Example usage and factory functions
-def create_sample_campaign_object() -> CampaignObject:
+def create_sample_campaign_object() -> Resource:
     """Create a sample campaign object for testing purposes."""
-    return CampaignObject(
+    return Resource(
         object_id="obj_123456",
         contact_id_1="v5x1234",
         contact_id_2="v5x5678",
@@ -136,9 +136,9 @@ def create_sample_campaign_object() -> CampaignObject:
     )
 
 
-def create_sample_campaign_object_with_echo() -> EchoObject:
+def create_sample_campaign_object_with_echo() -> Reviewable:
     """Create a sample campaign object with ECHO metadata for testing purposes."""
-    return EchoObject(
+    return Reviewable(
         object_id="obj_123456",
         contact_id_1="v5x1234",
         contact_id_2="v5x5678",
@@ -157,9 +157,9 @@ def create_sample_campaign_object_with_echo() -> EchoObject:
     )
 
 
-def create_sample_outgoing_notification() -> OutgoingNotification:
+def create_sample_outgoing_notification() -> Notification:
     """Create a sample outgoing notification for testing purposes."""
-    return OutgoingNotification(
+    return Notification(
         recipient="v5x1234",
         object_id="object_123456",
         edit_url="https://app.example.com/objects/obj_123456/edit",
