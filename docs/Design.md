@@ -230,3 +230,54 @@ Each cycle execution follows a three-phase process:
 - Campaign frequency should be longer than cycle duration to prevent overlap
 - System should prevent or handle overlapping cycles
 - Need clear policies for cycle conflict resolution
+
+
+
+# Capagin
+## Definition
+Capaign includes:
+- Name
+- Description
+- Data source connection info (type, auth, query, etc)
+- Cycle frequency (how often to start a new cycle)
+- Escalation rules (who to notify, how many times, when, etc)
+- Notification templates (per transport type)
+- Enabled/disabled flag
+
+```json
+{
+  "campaign_id": "string",
+  "name": "string",
+  "description": "string",
+  "data_source": {
+    "type": "sql|api|http",
+    "connection_info": {
+      // connection details based on type
+    },
+    "query": "string"
+  },
+  "cycle_frequency_days": 30,
+  "escalation_rules": [
+    {
+      "escalation_level": 1,
+      "recipients": ["static_user_id", "record_contact", "manager"],
+      "delay_days": 0
+    },
+    {
+      "escalation_level": 2,
+      "recipients": ["static_user_id", "record_contact", "manager"],
+      "delay_days": 7
+    }
+  ],
+  "notification_templates": {
+    "email": {
+      "subject_template": "string",
+      "body_template": "string"
+    },
+    "teams": {
+      "message_template": "string"
+    }
+  },
+  "enabled": true
+}
+```
