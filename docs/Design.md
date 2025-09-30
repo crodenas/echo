@@ -243,6 +243,7 @@ Capaign includes:
 - Escalation rules (who to notify, how many times, when, etc)
 - Notification templates (per transport type)
 - Enabled/disabled flag
+- Last run date
 
 ```json
 {
@@ -252,32 +253,29 @@ Capaign includes:
   "data_source": {
     "type": "sql|api|http",
     "connection_info": {
-      // connection details based on type
+      // connection details depending on type
     },
-    "query": "string"
+    "query": "string" // SQL query or API endpoint
   },
   "cycle_frequency_days": 30,
   "escalation_rules": [
     {
-      "escalation_level": 1,
+      "level": 1,
       "recipients": ["static_user_id", "record_contact", "manager"],
       "delay_days": 0
     },
     {
-      "escalation_level": 2,
+      "level": 2,
       "recipients": ["static_user_id", "record_contact", "manager"],
       "delay_days": 7
     }
   ],
   "notification_templates": {
-    "email": {
-      "subject_template": "string",
-      "body_template": "string"
-    },
-    "teams": {
-      "message_template": "string"
-    }
+    "email": "template_id",
+    "teams": "template_id",
+    "slack": "template_id"
   },
-  "enabled": true
+  "enabled": true,
+  "last_run_date": "2024-01-01T00:00:00Z"
 }
 ```
