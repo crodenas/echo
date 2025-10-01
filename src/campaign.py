@@ -1,9 +1,11 @@
 "module"
 
+from typing import Optional
+
+from pydantic import BaseModel, field_validator
+
 from data import db
 from models import Resource
-from pydantic import BaseModel, field_validator
-from typing import Optional
 
 
 class NotificationTemplates(BaseModel):
@@ -31,9 +33,9 @@ class Cycle(BaseModel):
 class Campaign(BaseModel):
     """Campaign config for a notification campaign."""
 
-    campaign_id: int  # Unique identifier for the campaign
+    campaign_id: int  # Unique identifier for the campaign from the DB
     name: str
-    description: str
+    description: Optional[str] = None  # Optional description of the campaign
     data_source: str
     templates: dict  # Dictionary of templates for different notification types
 
@@ -43,7 +45,7 @@ class Campaign(BaseModel):
 def get_campaign_objects() -> list[Resource]:
     """Get all campaign objects from the database."""
     # Load campaign objects from JSON file
-    campaign_data = db.read_json_db("data/CampaignObjects1.json")
+    campaign_data = db.read_json_db("data/Campaign1.json")
     return [Resource(**obj) for obj in campaign_data]
 
 

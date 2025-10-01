@@ -1,11 +1,11 @@
 "module"
 
 from typing import Optional
+
 from data import db
 from models import Employee
 
-
-employee_db = db.read_json_db("data/WorkerObjects.json")
+employee_db = db.read_json_db("data/Employees.json")
 
 
 def get_by_system_id(system_id: str) -> Optional[Employee]:
