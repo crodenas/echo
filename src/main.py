@@ -3,7 +3,7 @@
 import time
 from datetime import datetime
 
-from scheduler import create_scheduler
+from scheduler import BackgroundSchedulerFactory
 
 
 def tick():
@@ -19,7 +19,7 @@ def tick():
 def main():
     "function"
 
-    scheduler = create_scheduler(name="main")
+    scheduler = BackgroundSchedulerFactory.create_scheduler(name="main")
 
     # Add a job to the scheduler that will run the `tick` function every 3 seconds
     scheduler.add_job(tick, "interval", seconds=3)
