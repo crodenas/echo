@@ -12,3 +12,15 @@ Specifically Echo provides the following features:
 
 Enhancements:
 - Reporting and Analytics: Generate reports and analytics on campaign performance.
+
+
+Terms:
+Campaign - A campaign is defined by a set of "reviewable items" that need to be verified/updated/confirmed by a set of users, usually derived from a reviewable item's contacts.  A campaign defines the set of reviewable items that are notified with the set of same defined cycles.
+
+Reviewable Item - A reviewable item is an entity that needs to be reviewed/verified/confirmed by a user.  Examples of reviewable items are: a service, a database, a server, a document, etc.  A reviewable item is associated with a set of contacts that are responsible for reviewing it.
+
+Cycle - A cycle is series of notifications that are sent to the contacts associated with the reviewable item.  A cycle is defined by a start date, an end date, a set of escalation policies and a set of notification templates.
+
+Notification - A notification is a message that is sent to a contact.  A notification is defined by a template, a recipient and template metadata.
+
+Echo - A management system for scheduling and managing escalating notification campaigns.

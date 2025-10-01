@@ -11,10 +11,15 @@ def tick():
     print(f"The time is: {datetime.now()}")
 
 
+# Need to understnad how it loads when it is re started
+# Need to understand what the skip misfires does to the emails
+# Can a notification receive the next run time to include in the email?
+
+
 def main():
     "function"
 
-    scheduler = create_scheduler()
+    scheduler = create_scheduler(name="main")
 
     # Add a job to the scheduler that will run the `tick` function every 3 seconds
     scheduler.add_job(tick, "interval", seconds=3)
