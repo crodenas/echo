@@ -3,7 +3,7 @@
 import time
 from datetime import datetime
 
-from apscheduler.schedulers.background import BackgroundScheduler
+from scheduler import create_scheduler
 
 
 def tick():
@@ -13,8 +13,8 @@ def tick():
 
 def main():
     "function"
-    # Create a new scheduler that runs in the background
-    scheduler = BackgroundScheduler()
+
+    scheduler = create_scheduler()
 
     # Add a job to the scheduler that will run the `tick` function every 3 seconds
     scheduler.add_job(tick, "interval", seconds=3)
