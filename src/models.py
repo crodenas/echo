@@ -2,7 +2,23 @@
 
 from datetime import datetime
 from typing import Optional
+
 from pydantic import BaseModel, Field, HttpUrl
+
+
+class Campaign(BaseModel):
+    """
+    Campaign config for a notification campaign.
+
+    Contains campaign identifiers, data source information, templates for
+    notifications, and scheduling rules.
+    """
+
+    campaign_id: int = Field(..., description="Unique identifier for the campaign")
+    name: str = Field(..., description="Name of the campaign")
+    description: Optional[str] = Field(
+        None, description="Optional description of the campaign"
+    )
 
 
 class Employee(BaseModel):
@@ -118,50 +134,4 @@ class Notification(BaseModel):
     campaign_id: Optional[str] = Field(
         None,
         description="Identifier for the campaign associated with the notification.",
-    )
-
-
-# Example usage and factory functions
-def create_sample_campaign_object() -> Resource:
-    """Create a sample campaign object for testing purposes."""
-    return Resource(
-        object_id="obj_123456",
-        contact_id_1="v5x1234",
-        contact_id_2="v5x5678",
-        contact_id_3="v5x9012",
-        contact_id_4="v5x3456",
-        edit_url="https://app.example.com/objects/obj_123456/edit",
-        last_verified_date=datetime(2024, 10, 1, 12, 0, 0),
-        last_updated_date=datetime(2024, 10, 15, 12, 0, 0),
-    )
-
-
-def create_sample_campaign_object_with_echo() -> Reviewable:
-    """Create a sample campaign object with ECHO metadata for testing purposes."""
-    return Reviewable(
-        object_id="obj_123456",
-        contact_id_1="v5x1234",
-        contact_id_2="v5x5678",
-        contact_id_3="v5x9012",
-        contact_id_4="v5x3456",
-        edit_url="https://app.example.com/objects/obj_123456/edit",
-        last_verified_date=datetime(2024, 10, 1, 12, 0, 0),
-        last_updated_date=datetime(2024, 10, 15, 12, 0, 0),
-        last_notified_date=datetime(2024, 10, 20, 12, 0, 0),
-        notification_status="in_progress",
-        current_escalation_level=2,
-        max_escalations=3,
-        cycle_start_date=datetime(2024, 10, 18, 12, 0, 0),
-        cycle_end_date=None,
-        campaign_id="camp_001",
-    )
-
-
-def create_sample_outgoing_notification() -> Notification:
-    """Create a sample outgoing notification for testing purposes."""
-    return Notification(
-        recipient="v5x1234",
-        object_id="object_123456",
-        edit_url="https://app.example.com/objects/obj_123456/edit",
-        campaign_id="camp_001",
     )

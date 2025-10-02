@@ -1,7 +1,7 @@
 "module"
 
-from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
+from apscheduler.schedulers.background import BackgroundScheduler
 
 
 class BackgroundSchedulerFactory:

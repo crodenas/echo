@@ -6,12 +6,12 @@ from datetime import datetime
 from scheduler import BackgroundSchedulerFactory
 
 
-def tick():
+def tick(name: str):
     "function"
-    print(f"The time is: {datetime.now()}")
+    print(f"The time is: {datetime.now()} for {name}")
 
 
-# Need to understnad how it loads when it is re started
+# Need to understand how it loads when it is re started
 # Need to understand what the skip misfires does to the emails
 # Can a notification receive the next run time to include in the email?
 
@@ -22,7 +22,8 @@ def main():
     scheduler = BackgroundSchedulerFactory.create_scheduler(name="main")
 
     # Add a job to the scheduler that will run the `tick` function every 3 seconds
-    scheduler.add_job(tick, "interval", seconds=3)
+    scheduler.add_job(tick, "interval", seconds=3, kwargs={"name": "task1"})
+    scheduler.add_job(tick, "interval", seconds=2, kwargs={"name": "task2"})
 
     # Start the scheduler
     scheduler.start()
