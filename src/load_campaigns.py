@@ -1,7 +1,7 @@
 "module"
 
-import campaign as c
-from models import Campaign
+import echo.campaign as c
+from echo.models import Campaign
 
 
 def main():

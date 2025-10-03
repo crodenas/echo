@@ -6,7 +6,7 @@ from sqlalchemy.orm import sessionmaker
 
 from db.db_engine import echo_engine
 from db.schemas import CampaignSchema
-from models import Campaign
+from echo.models import Campaign
 
 
 def list_campaigns() -> List[Campaign]:

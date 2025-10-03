@@ -3,8 +3,8 @@
 import time
 from datetime import datetime
 
-from campaign import list_campaigns
-from scheduler import CampaignSchedulerFactory
+from echo.campaign import list_campaigns
+from echo.scheduler import CampaignSchedulerFactory
 
 
 def tick(name: str):
