@@ -16,6 +16,7 @@ def main():
     "function"
 
     scheduler_factory = CampaignSchedulerFactory()
+    schedulers = []
 
     # Get Campaigns
     campaigns = list_campaigns()
@@ -23,7 +24,9 @@ def main():
     # For each campaign, start each scheduler
     for campaign in campaigns:
         print(f"Scheduling campaign: {campaign.id}:{campaign.name}")
-
+        scheduler = scheduler_factory.create_scheduler(campaign)
+        schedulers.append(scheduler)
+        scheduler.start()
     try:
         # Keep the main thread alive
 
@@ -32,7 +35,9 @@ def main():
 
     except (KeyboardInterrupt, SystemExit):
         # Shut down the scheduler gracefully on exit
-        print("Shutting down scheduler...")
+        print("Shutting down schedulers...")
+        for scheduler in schedulers:
+            scheduler.shutdown()
         print("Scheduler shut down.")
 
 
