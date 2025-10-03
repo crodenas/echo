@@ -2,7 +2,7 @@
 
 from sqlalchemy.orm import Mapped, declarative_base, mapped_column
 
-from data.db_engine import echo_engine
+from db.db_engine import echo_engine
 
 Base = declarative_base()
 
@@ -14,6 +14,8 @@ class CampaignSchema(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     name: Mapped[str] = mapped_column()
     description: Mapped[str | None] = mapped_column(nullable=True)
+    cycle_schedule: Mapped[str | None] = mapped_column(nullable=True)
+    escalation_schedule: Mapped[str | None] = mapped_column(nullable=True)
 
 
 def create_tables(engine) -> None:

@@ -3,7 +3,9 @@
 import time
 from datetime import datetime
 
-from scheduler import BackgroundSchedulerFactory
+from campaign import list_campaigns
+
+# from scheduler import CampaignSchedulerFactory
 
 
 def tick(name: str):
@@ -11,24 +13,15 @@ def tick(name: str):
     print(f"The time is: {datetime.now()} for {name}")
 
 
-# Need to understand how it loads when it is re started
-# Need to understand what the skip misfires does to the emails
-# Can a notification receive the next run time to include in the email?
-
-
 def main():
     "function"
 
-    scheduler = BackgroundSchedulerFactory.create_scheduler(name="main")
+    # Get Campaigns
+    campaigns = list_campaigns()
 
-    # Add a job to the scheduler that will run the `tick` function every 3 seconds
-    scheduler.add_job(tick, "interval", seconds=3, kwargs={"name": "task1"})
-    scheduler.add_job(tick, "interval", seconds=2, kwargs={"name": "task2"})
-
-    # Start the scheduler
-    scheduler.start()
-
-    print("Scheduler started. Press Ctrl+C to exit.")
+    # For each campaign...
+    for campaign in campaigns:
+        print(f"Scheduling campaign: {campaign.id}:{campaign.name}")
 
     try:
         # Keep the main thread alive
@@ -39,7 +32,6 @@ def main():
     except (KeyboardInterrupt, SystemExit):
         # Shut down the scheduler gracefully on exit
         print("Shutting down scheduler...")
-        scheduler.shutdown()
         print("Scheduler shut down.")
 
 

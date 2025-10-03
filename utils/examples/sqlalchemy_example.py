@@ -1,7 +1,7 @@
 "module"
 
-from sqlalchemy.orm import declarative_base, mapped_column, Mapped
 from sqlalchemy import create_engine
+from sqlalchemy.orm import Mapped, declarative_base, mapped_column
 
 # Create a declarative base class
 Base = declarative_base()

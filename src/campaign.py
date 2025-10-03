@@ -4,8 +4,8 @@ from typing import List
 
 from sqlalchemy.orm import sessionmaker
 
-from data.db_engine import echo_engine
-from data.models import CampaignSchema
+from db.db_engine import echo_engine
+from db.schemas import CampaignSchema
 from models import Campaign
 
 
@@ -56,11 +56,21 @@ def delete_campaign(campaign: Campaign) -> None:
 # Utilities
 def to_domain(model: CampaignSchema) -> Campaign:
     "function"
-    return Campaign(id=model.id, name=model.name, description=model.description)
+    return Campaign(
+        id=model.id,
+        name=model.name,
+        description=model.description,
+        cycle_schedule=model.cycle_schedule,
+        escalation_schedule=model.escalation_schedule,
+    )
 
 
 def to_model(campaign: Campaign) -> CampaignSchema:
     "function"
     return CampaignSchema(
-        id=campaign.id, name=campaign.name, description=campaign.description
+        id=campaign.id,
+        name=campaign.name,
+        description=campaign.description,
+        cycle_schedule=campaign.cycle_schedule,
+        escalation_schedule=campaign.escalation_schedule,
     )

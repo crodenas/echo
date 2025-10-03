@@ -9,4 +9,4 @@ def make_engine(db_url: str | URL, echo: bool = False) -> Engine:
     return create_engine(db_url, echo=echo)  # echo=True for SQL logging (optional)
 
 
-echo_engine = make_engine("sqlite:///echo.db", echo=True)
+echo_engine = make_engine("sqlite:///data/echo.db", echo=True)

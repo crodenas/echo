@@ -10,6 +10,8 @@ class Campaign:
     id: int | None
     name: str
     description: str | None
+    cycle_schedule: str | None
+    escalation_schedule: str | None
 
     def change_description(self, new_description: str | None) -> None:
         "method"

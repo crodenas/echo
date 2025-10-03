@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from data import db_json
+from db import db_json
 from models import Employee
 
 employee_db = db_json.get_db("data/Employees.json")
