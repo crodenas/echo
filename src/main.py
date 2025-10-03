@@ -26,6 +26,14 @@ def main():
         print(f"Scheduling campaign: {campaign.id}:{campaign.name}")
         scheduler = scheduler_factory.create_scheduler(campaign)
         schedulers.append(scheduler)
+        scheduler.add_job(
+            tick,
+            trigger="cron",
+            minute="*",
+            args=[f"Campaign {campaign.name}"],
+            id=f"tick_{campaign.id}",
+            replace_existing=True,
+        )
         scheduler.start()
     try:
         # Keep the main thread alive

@@ -4,18 +4,36 @@ from dataclasses import dataclass
 
 
 @dataclass
+class CronSchedule:
+    "class"
+
+    minute: str | None
+    hour: str | None
+    day: str | None
+    month: str | None
+    day_of_week: str | None
+
+
+@dataclass
+class IntervalSchedule:
+    "class"
+
+    weeks: int | None
+    days: int | None
+    hours: int | None
+    minutes: int | None
+    seconds: int | None
+
+
+@dataclass
 class Campaign:
     "class"
 
     id: int | None
     name: str
     description: str | None
-    cycle_schedule: str | None
+    cycle_schedule: CronSchedule | None
     escalation_schedule: str | None
-
-    def change_description(self, new_description: str | None) -> None:
-        "method"
-        self.description = new_description
 
 
 @dataclass
