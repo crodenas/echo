@@ -4,8 +4,7 @@ import time
 from datetime import datetime
 
 from campaign import list_campaigns
-
-# from scheduler import CampaignSchedulerFactory
+from scheduler import CampaignSchedulerFactory
 
 
 def tick(name: str):
@@ -16,10 +15,12 @@ def tick(name: str):
 def main():
     "function"
 
+    scheduler_factory = CampaignSchedulerFactory()
+
     # Get Campaigns
     campaigns = list_campaigns()
 
-    # For each campaign...
+    # For each campaign, start each scheduler
     for campaign in campaigns:
         print(f"Scheduling campaign: {campaign.id}:{campaign.name}")
 
