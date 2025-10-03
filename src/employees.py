@@ -2,17 +2,25 @@
 
 from typing import Optional
 
-from data import db
+from data import db_json
 from models import Employee
 
-employee_db = db.read_json_db("data/Employees.json")
+employee_db = db_json.get_db("data/Employees.json")
 
 
 def get_by_system_id(system_id: str) -> Optional[Employee]:
     """Get a Worker by their SystemId."""
     for emp in employee_db:
         if emp["SystemId"] == system_id:
-            return Employee(**emp)
+            return Employee(
+                first_name=emp["FirstName"],
+                last_name=emp["LastName"],
+                global_id=emp["GlobalId"],
+                system_id=emp["SystemId"],
+                internet_email_address=emp["InternetEmailAddress"],
+                job_title=emp["JobTitle"],
+                supervisor_system_id=emp["SupervisorSystemId"],
+            )
     return None
 
 

@@ -1,56 +1,40 @@
 "module"
 
-from typing import Optional
+from typing import List
 
-from pydantic import BaseModel, field_validator
+from sqlalchemy.orm import sessionmaker
 
-from data import db
-from models import Resource
-
-
-class NotificationTemplates(BaseModel):
-    """Templates for different notification types."""
-
-    email: str  # Email template use to send email notifications
-    slack: Optional[str] = None  # Slack template (optional)
-    teams: Optional[str] = None  # Microsoft Teams template (optional)
-
-    @classmethod
-    def email_must_not_be_empty(cls, v: str) -> str:
-        if not v or not v.strip():
-            raise ValueError("Email template cannot be empty")
-        return v
+from data.db_engine import echo_engine
+from data.models import CampaignModel
+from models import Campaign
 
 
-class RunConfig(BaseModel):
-    """Run config for a notification run."""
+def list_campaigns() -> List[Campaign]:
+    "function"
+    with sessionmaker(bind=echo_engine)() as session:
+        return session.query(CampaignModel).all()
 
 
-class Cycle(BaseModel):
-    """Cycle config for a notification cycle."""
+def create_campaign(campaign: Campaign) -> Campaign:
+    "function"
+    with sessionmaker(bind=echo_engine)() as session:
+        campaign_model = CampaignModel(
+            name=campaign.name, description=campaign.description
+        )
+        session.add(campaign_model)
+        session.commit()
+        session.refresh(campaign_model)
+        return Campaign(
+            id=campaign_model.id,
+            name=campaign_model.name,
+            description=campaign_model.description,
+        )
 
 
-class Campaign(BaseModel):
-    """Campaign config for a notification campaign."""
-
-    campaign_id: int  # Unique identifier for the campaign from the DB
-    name: str
-    description: Optional[str] = None  # Optional description of the campaign
-    data_source: str
-    templates: dict  # Dictionary of templates for different notification types
-
-    cycle_rrule: str  # Rule defining the cycle schedule
+# # infrastructure/mappers.py
+# def to_domain(model: UserModel) -> User:
+#     return User(id=model.id, email=model.email, name=model.name)
 
 
-def get_campaign_objects() -> list[Resource]:
-    """Get all campaign objects from the database."""
-    # Load campaign objects from JSON file
-    campaign_data = db.read_json_db("data/Campaign1.json")
-    return [Resource(**obj) for obj in campaign_data]
-
-
-def get_campaigns() -> list[Campaign]:
-    """Get all campaigns from the database."""
-    # Load campaigns from JSON file
-    campaign_data = db.read_json_db("data/Campaigns.json")
-    return [Campaign(**obj) for obj in campaign_data]
+# def to_model(user: User) -> UserModel:
+#     return UserModel(id=user.id, email=user.email, name=user.name)
