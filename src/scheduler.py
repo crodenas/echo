@@ -14,7 +14,7 @@ class CampaignSchedulerFactory:
         "method"
         jobstores = {
             "default": SQLAlchemyJobStore(
-                url=f"sqlite:///data/campaign_{campaign.id}.sqlite"
+                url=f"sqlite:///data/schedules/campaign_{campaign.id}.sqlite"
             )
         }
         return BackgroundScheduler(jobstores=jobstores)

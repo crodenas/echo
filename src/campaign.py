@@ -19,10 +19,7 @@ def list_campaigns() -> List[Campaign]:
 def add_campaign(campaign: Campaign) -> Campaign:
     "function"
     with sessionmaker(bind=echo_engine)() as session:
-        campaign_model = CampaignSchema(
-            name=campaign.name,
-            description=campaign.description,
-        )
+        campaign_model = to_schema(campaign)
         session.add(campaign_model)
         session.commit()
         session.refresh(campaign_model)
@@ -32,7 +29,7 @@ def add_campaign(campaign: Campaign) -> Campaign:
 def update_campaign(campaign: Campaign) -> Campaign | None:
     "function"
     with sessionmaker(bind=echo_engine)() as session:
-        campaign_model = to_model(campaign)
+        campaign_model = to_schema(campaign)
         session.merge(campaign_model)
         session.commit()
         return to_domain(campaign_model)
@@ -48,7 +45,7 @@ def get_campaign(campaign_id: int) -> Campaign | None:
 def delete_campaign(campaign: Campaign) -> None:
     "function"
     with sessionmaker(bind=echo_engine)() as session:
-        campaign_model = to_model(campaign)
+        campaign_model = to_schema(campaign)
         session.delete(campaign_model)
         session.commit()
 
@@ -65,7 +62,7 @@ def to_domain(model: CampaignSchema) -> Campaign:
     )
 
 
-def to_model(campaign: Campaign) -> CampaignSchema:
+def to_schema(campaign: Campaign) -> CampaignSchema:
     "function"
     return CampaignSchema(
         id=campaign.id,
