@@ -7,7 +7,7 @@ from data.db_engine import echo_engine
 Base = declarative_base()
 
 
-class CampaignModel(Base):
+class CampaignSchema(Base):
     "class"
 
     __tablename__ = "campaigns"
