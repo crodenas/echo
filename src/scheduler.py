@@ -3,7 +3,7 @@
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from echo.models import Campaign
+from models import Campaign
 
 
 class CampaignSchedulerFactory:
