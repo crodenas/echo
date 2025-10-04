@@ -1,90 +1,67 @@
-"module"
+"""Main module for the Echo application.
+
+This module initializes the FastAPI application and sets up routing and service dependencies.
+"""
 
 import time
 from contextlib import asynccontextmanager
-from datetime import datetime
-from typing import Union, List
+
 from fastapi import FastAPI
-from apscheduler.schedulers.background import BackgroundScheduler
-from campaign import list_campaigns
-from scheduler import CampaignSchedulerFactory
+
+from api.routes.basic import router as basic_router
+from services.scheduler_service import SchedulerService
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    "context manager for app lifespan"
-    start_schedulers()
+async def lifespan(_: FastAPI):
+    """
+    Context manager for application lifespan.
+
+    This handles starting and stopping schedulers when the app starts and shuts down.
+
+    Args:
+        _: The FastAPI application instance (unused but required by FastAPI)
+    """
+    scheduler_service = SchedulerService()
+    scheduler_service.start()
     yield
-    stop_schedulers()
+    scheduler_service.stop()
 
 
-app = FastAPI(lifespan=lifespan)
-# Global variable to store schedulers so they can be accessed in shutdown event
-schedulers: List[BackgroundScheduler] = []
+app = FastAPI(
+    title="Echo API",
+    description="Campaign Management API for automated reviews",
+    version="0.1.0",
+    lifespan=lifespan,
+)
 
+# Include routers
+app.include_router(basic_router)
+# Import all available routes
+try:
+    from api.routes.campaigns import router as campaigns_router
 
-@app.get("/")
-async def read_root():
-    "function"
-    return {"Hello": "World"}
-
-
-@app.get("/items/{item_id}")
-async def read_item(item_id: int, q: Union[str, None] = None):
-    "function"
-    return {"item_id": item_id, "q": q}
-
-
-def tick(name: str):
-    "function"
-    print(f"The time is: {datetime.now()} for {name}")
-
-
-def start_schedulers():
-    "function"
-    global schedulers
-
-    scheduler_factory = CampaignSchedulerFactory()
-
-    # Get Campaigns
-    campaigns = list_campaigns()
-
-    # For each campaign, start each scheduler
-    for campaign in campaigns:
-        print(f"Scheduling campaign: {campaign.id}:{campaign.name}")
-        scheduler = scheduler_factory.create_scheduler(campaign)
-        schedulers.append(scheduler)
-        scheduler.add_job(
-            tick,
-            trigger="cron",
-            minute="*",
-            args=[f"Campaign {campaign.name}"],
-            id=f"tick_{campaign.id}",
-            replace_existing=True,
-        )
-        scheduler.start()
-    print(f"Started {len(schedulers)} schedulers")
-
-
-def stop_schedulers():
-    "function"
-    global schedulers
-    print("Shutting down schedulers...")
-    for scheduler in schedulers:
-        scheduler.shutdown()
-    print("Schedulers shut down.")
+    app.include_router(campaigns_router)
+except ImportError as e:
+    print(f"Warning: Campaign routes could not be loaded - {e}")
 
 
 # For backwards compatibility or when running as standalone script
 def main():
-    "function"
-    start_schedulers()
+    """
+    Main function for running the scheduler service directly.
+
+    This function is used when the module is run as a standalone script.
+    It starts the schedulers and keeps the main thread alive until interrupted.
+    """
+    scheduler_service = SchedulerService()
+    scheduler_service.start()
     try:
         # Keep the main thread alive
         while True:
             time.sleep(1)
     except (KeyboardInterrupt, SystemExit):
-        stop_schedulers()
+        scheduler_service.stop()
 
 
 if __name__ == "__main__":
