@@ -1,10 +1,38 @@
 "module"
 
 import time
+from contextlib import asynccontextmanager
 from datetime import datetime
-
+from typing import Union, List
+from fastapi import FastAPI
+from apscheduler.schedulers.background import BackgroundScheduler
 from campaign import list_campaigns
 from scheduler import CampaignSchedulerFactory
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    "context manager for app lifespan"
+    start_schedulers()
+    yield
+    stop_schedulers()
+
+
+app = FastAPI(lifespan=lifespan)
+# Global variable to store schedulers so they can be accessed in shutdown event
+schedulers: List[BackgroundScheduler] = []
+
+
+@app.get("/")
+async def read_root():
+    "function"
+    return {"Hello": "World"}
+
+
+@app.get("/items/{item_id}")
+async def read_item(item_id: int, q: Union[str, None] = None):
+    "function"
+    return {"item_id": item_id, "q": q}
 
 
 def tick(name: str):
@@ -12,11 +40,11 @@ def tick(name: str):
     print(f"The time is: {datetime.now()} for {name}")
 
 
-def main():
+def start_schedulers():
     "function"
+    global schedulers
 
     scheduler_factory = CampaignSchedulerFactory()
-    schedulers = []
 
     # Get Campaigns
     campaigns = list_campaigns()
@@ -35,18 +63,28 @@ def main():
             replace_existing=True,
         )
         scheduler.start()
+    print(f"Started {len(schedulers)} schedulers")
+
+
+def stop_schedulers():
+    "function"
+    global schedulers
+    print("Shutting down schedulers...")
+    for scheduler in schedulers:
+        scheduler.shutdown()
+    print("Schedulers shut down.")
+
+
+# For backwards compatibility or when running as standalone script
+def main():
+    "function"
+    start_schedulers()
     try:
         # Keep the main thread alive
-
         while True:
             time.sleep(1)
-
     except (KeyboardInterrupt, SystemExit):
-        # Shut down the scheduler gracefully on exit
-        print("Shutting down schedulers...")
-        for scheduler in schedulers:
-            scheduler.shutdown()
-        print("Scheduler shut down.")
+        stop_schedulers()
 
 
 if __name__ == "__main__":
