@@ -1,39 +1,36 @@
 """Module for loading sample campaigns into the database."""
 
 import campaign as c
-from models import Campaign, CronSchedule
+from models import Campaign, IntervalSchedule
 
 
 def main():
-    # Define weekly schedule (runs every Monday at 9:00 AM)
-    weekly_schedule = CronSchedule(
-        minute="0", hour="9", day="*", month="*", day_of_week="0"  # Monday
+    # Define a minute interval schedule (runs every minute)
+    minute_schedule = IntervalSchedule(
+        weeks=None, days=None, hours=None, minutes=1, seconds=None
     )
 
-    campaigns = [
-        {
-            "name": "SVT",
-            "description": "Swedish Public Service Television",
-            "cycle_schedule": weekly_schedule,
-            "escalation_schedule": "Hourly",
-        },
-        {
-            "name": "CVT",
-            "description": "Czech Public Service Television",
-            "cycle_schedule": weekly_schedule,
-            "escalation_schedule": "Hourly",
-        },
-    ]
+    # Define a 5-second interval schedule for escalation with only 5 events
+    five_second_schedule = IntervalSchedule(
+        weeks=None, days=None, hours=None, minutes=None, seconds=5
+    )
 
-    for campaign in campaigns:
-        new_campaign = Campaign(
-            id=None,
-            name=campaign["name"],
-            description=campaign["description"],
-            cycle_schedule=campaign["cycle_schedule"],
-            escalation_schedule=campaign["escalation_schedule"],
-        )
-        c.add_campaign(new_campaign)
+    # Create just one campaign with the specified schedules
+    campaign_data = {
+        "name": "Fast Escalation Demo",
+        "description": "Campaign with minute cycle and 5-second escalation (limited to 5 events)",
+        "cycle_schedule": minute_schedule,
+        "escalation_schedule": five_second_schedule,
+    }
+
+    new_campaign = Campaign(
+        id=None,
+        name=campaign_data["name"],
+        description=campaign_data["description"],
+        cycle_schedule=campaign_data["cycle_schedule"],
+        escalation_schedule=campaign_data["escalation_schedule"],
+    )
+    c.add_campaign(new_campaign)
 
 
 if __name__ == "__main__":

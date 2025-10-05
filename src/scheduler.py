@@ -1,5 +1,8 @@
 "module"
 
+import os
+from pathlib import Path
+
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -12,9 +15,11 @@ class CampaignSchedulerFactory:
     @staticmethod
     def create_scheduler(campaign: Campaign) -> BackgroundScheduler:
         "method"
-        jobstores = {
-            "default": SQLAlchemyJobStore(
-                url=f"sqlite:///data/schedules/campaign_{campaign.id}.sqlite"
-            )
-        }
+        # Get the absolute path to the schedules directory
+        project_root = Path(__file__).parent
+        schedules_dir = project_root / "data" / "schedules"
+        os.makedirs(schedules_dir, exist_ok=True)
+        db_path = schedules_dir / f"campaign_{campaign.id}.sqlite"
+
+        jobstores = {"default": SQLAlchemyJobStore(url=f"sqlite:///{db_path}")}
         return BackgroundScheduler(jobstores=jobstores)
