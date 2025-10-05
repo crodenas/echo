@@ -1,5 +1,6 @@
 "module"
 
+from sqlalchemy import JSON
 from sqlalchemy.orm import Mapped, declarative_base, mapped_column
 
 from db.db_engine import echo_engine
@@ -14,8 +15,9 @@ class CampaignSchema(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     name: Mapped[str] = mapped_column()
     description: Mapped[str | None] = mapped_column(nullable=True)
-    cycle_schedule: Mapped[str | None] = mapped_column(nullable=True)
-    escalation_schedule: Mapped[str | None] = mapped_column(nullable=True)
+    # Using JSON column type to store schedule configurations
+    cycle_schedule: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    escalation_schedule: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 def create_tables(engine) -> None:

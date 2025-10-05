@@ -32,6 +32,60 @@ class SchedulerService:
             cls._instance = super(SchedulerService, cls).__new__(cls)
         return cls._instance
 
+    def _create_job_config(self, schedule, _campaign=None):
+        """
+        Create job configuration based on schedule type.
+
+        Args:
+            schedule: The schedule configuration (CronSchedule, IntervalSchedule, OneTimeSchedule)
+            _campaign: (Optional) The campaign the job belongs to, for potential future use
+
+        Returns:
+            dict: Configuration for scheduler.add_job
+        """
+        from models import CronSchedule, IntervalSchedule, OneTimeSchedule
+
+        if isinstance(schedule, CronSchedule):
+            # Create a cron trigger configuration
+            config = {
+                "trigger": "cron",
+            }
+            if schedule.minute is not None:
+                config["minute"] = schedule.minute
+            if schedule.hour is not None:
+                config["hour"] = schedule.hour
+            if schedule.day is not None:
+                config["day"] = schedule.day
+            if schedule.month is not None:
+                config["month"] = schedule.month
+            if schedule.day_of_week is not None:
+                config["day_of_week"] = schedule.day_of_week
+            return config
+
+        elif isinstance(schedule, IntervalSchedule):
+            # Create an interval trigger configuration
+            config = {
+                "trigger": "interval",
+            }
+            if schedule.weeks is not None:
+                config["weeks"] = schedule.weeks
+            if schedule.days is not None:
+                config["days"] = schedule.days
+            if schedule.hours is not None:
+                config["hours"] = schedule.hours
+            if schedule.minutes is not None:
+                config["minutes"] = schedule.minutes
+            if schedule.seconds is not None:
+                config["seconds"] = schedule.seconds
+            return config
+
+        elif isinstance(schedule, OneTimeSchedule):
+            # Create a date trigger configuration
+            return {"trigger": "date", "run_date": schedule.run_date}
+
+        # Default to a simple hourly job if schedule type is unknown
+        return {"trigger": "cron", "minute": "0"}
+
     @property
     def schedulers(self) -> List[BackgroundScheduler]:
         """Get the list of active schedulers."""
@@ -54,14 +108,16 @@ class SchedulerService:
             print(f"Scheduling campaign: {campaign.id}:{campaign.name}")
             scheduler = scheduler_factory.create_scheduler(campaign)
             self._schedulers.append(scheduler)
-            scheduler.add_job(
-                tick_job,
-                trigger="cron",
-                minute="*",
-                args=[f"Campaign {campaign.name}"],
-                id=f"tick_{campaign.id}",
-                replace_existing=True,
-            )
+            # Add job based on cycle schedule type
+            if campaign.cycle_schedule:
+                job_config = self._create_job_config(campaign.cycle_schedule, campaign)
+                scheduler.add_job(
+                    tick_job,
+                    **job_config,
+                    args=[f"Campaign {campaign.name}"],
+                    id=f"tick_{campaign.id}",
+                    replace_existing=True,
+                )
             scheduler.start()
         print(f"Started {len(self._schedulers)} schedulers")
 

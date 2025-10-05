@@ -26,14 +26,21 @@ class IntervalSchedule:
 
 
 @dataclass
+class OneTimeSchedule:
+    "class"
+
+    run_date: str  # ISO 8601 format
+
+
+@dataclass
 class Campaign:
     "class"
 
     id: int | None
     name: str
     description: str | None
-    cycle_schedule: CronSchedule | None
-    escalation_schedule: str | None
+    cycle_schedule: CronSchedule | IntervalSchedule | OneTimeSchedule | None
+    escalation_schedule: CronSchedule | IntervalSchedule | OneTimeSchedule | None
 
 
 @dataclass
