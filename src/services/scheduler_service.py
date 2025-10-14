@@ -73,17 +73,26 @@ def start_new_cycle(name: str, campaign_id: str) -> None:
         # Use max_events from campaign or default to 5 if not specified
         max_events = campaign.max_events if campaign.max_events is not None else 5
 
-        # Create a new escalation job using the cycle schedule configuration
-        scheduler.add_job(
-            cycle_event,
-            **job_config,
-            args=[name, max_events, campaign_id, current_time],
-            id=job_id,
-            replace_existing=True,
-        )
-        print(
-            f"New escalation sequence scheduled for {name} starting at {current_time} using cycle schedule"
-        )
+        # Execute the first cycle event immediately (no delay)
+        cycle_event(name, max_events, campaign_id, current_time)
+
+        # If there are more events to schedule (max_events > 1), schedule the remaining ones
+        if max_events > 1:
+            # Create a new escalation job using the cycle schedule configuration
+            scheduler.add_job(
+                cycle_event,
+                **job_config,
+                args=[name, max_events, campaign_id, current_time],
+                id=job_id,
+                replace_existing=True,
+            )
+            print(
+                f"New escalation sequence scheduled for {name} starting at {current_time} using cycle schedule"
+            )
+        else:
+            print(
+                f"Single event cycle for {name} completed immediately at {current_time}"
+            )
     else:
         print(f"Warning: No scheduler found for campaign {campaign_id} in the registry")
 
@@ -93,8 +102,8 @@ def cycle_event(
 ) -> None:
     """
     Job for cycle events with a counter to limit the number of executions.
-    This function is scheduled by start_new_cycle and runs at regular intervals
-    until it reaches the maximum number of events, then removes itself.
+    The first event is called immediately by start_new_cycle, then subsequent
+    events are scheduled at regular intervals until reaching max_events.
 
     Args:
         name: The campaign name
