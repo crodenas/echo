@@ -1,12 +1,12 @@
 """Scheduler service for managing campaign schedulers."""
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import List, Dict, Any
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.jobstores.base import JobLookupError
 
-from campaign import list_campaigns
+from campaign import list_campaigns, get_campaign
 from scheduler import CampaignSchedulerFactory
 
 # Dictionary to track escalation event counts and store scheduler references
@@ -15,7 +15,7 @@ event_counters: Dict[str, int] = {}
 scheduler_registry: Dict[str, Any] = {}
 
 
-def tick_job(name: str, campaign_id: str) -> None:
+def start_new_cycle(name: str, campaign_id: str) -> None:
     """
     Job that logs the current time and triggers escalation scheduling.
     This function needs to be at module level to be properly serialized.
@@ -43,6 +43,12 @@ def tick_job(name: str, campaign_id: str) -> None:
 
     event_counters[job_key] = 0
 
+    # Get the campaign from the database to access cycle_schedule
+    campaign = get_campaign(int(campaign_id))
+    if not campaign or not campaign.cycle_schedule:
+        print(f"Warning: No cycle schedule found for campaign {campaign_id}")
+        return
+
     # Get the scheduler instance from the registry
     scheduler_key = f"scheduler_{campaign_id}"
     if scheduler_key in scheduler_registry:
@@ -58,39 +64,48 @@ def tick_job(name: str, campaign_id: str) -> None:
             # Job might not exist, that's okay
             pass
 
-        # Create a new escalation job with regular intervals
-        # Each cycle will create a new series of escalations
+        # Create job configuration from the campaign's cycle_schedule
+        job_config = campaign.cycle_schedule.create_job_config()
+        job_config["start_date"] = current_time
+
+        # No end_date needed - the job will remove itself after max_events
+
+        # Use max_events from campaign or default to 5 if not specified
+        max_events = campaign.max_events if campaign.max_events is not None else 5
+
+        # Create a new escalation job using the cycle schedule configuration
         scheduler.add_job(
-            escalation_job,
-            trigger="interval",
-            minutes=5,  # Run escalation every 5 minutes
-            start_date=current_time,
-            end_date=current_time + timedelta(hours=1),  # Run for 1 hour
-            args=[f"Campaign {name}", 5],  # Limit to 5 events
+            cycle_event,
+            **job_config,
+            args=[name, max_events, campaign_id, current_time],
             id=job_id,
             replace_existing=True,
         )
         print(
-            f"New escalation sequence scheduled for {name} starting at {current_time}"
+            f"New escalation sequence scheduled for {name} starting at {current_time} using cycle schedule"
         )
     else:
         print(f"Warning: No scheduler found for campaign {campaign_id} in the registry")
 
 
-def escalation_job(name: str, max_events: int) -> None:
+def cycle_event(
+    name: str, max_events: int, campaign_id: str, cycle_start_date: datetime
+) -> None:
     """
-    Job for escalation events with a counter to limit the number of executions.
-    This function is scheduled by the tick_job and runs at regular intervals
-    for a limited period after each cycle starts.
+    Job for cycle events with a counter to limit the number of executions.
+    This function is scheduled by start_new_cycle and runs at regular intervals
+    until it reaches the maximum number of events, then removes itself.
 
     Args:
-        name: The name to include in the log message
+        name: The campaign name
         max_events: Maximum number of events to trigger
+        campaign_id: The ID of the campaign (used to find the correct scheduler)
+        cycle_start_date: When this cycle started
     """
-    # Use the same key format as in tick_job to track escalation events
-    job_key = f"escalation_{name}"
+    # Use the same key format as in start_new_cycle to track cycle events
+    job_key = f"Campaign {name}"
 
-    # Initialize counter if not exists (although tick_job should have done this already)
+    # Initialize counter if not exists (although start_new_cycle should have done this already)
     if job_key not in event_counters:
         event_counters[job_key] = 0
 
@@ -101,13 +116,33 @@ def escalation_job(name: str, max_events: int) -> None:
     # Process based on current count
     if current_count <= max_events:
         print(
-            f"ESCALATION EVENT {current_count}/{max_events} at {datetime.now()} for {name}"
+            f"CYCLE EVENT - Campaign ID: {campaign_id}, Name: {name}, "
+            f"Cycle Start: {cycle_start_date.strftime('%Y-%m-%d %H:%M:%S')}, "
+            f"Event: {current_count}/{max_events}, "
+            f"Current Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         )
-        # Log when we've reached the maximum number of events
+
+        # Remove the job when we've reached the maximum number of events
         if current_count == max_events:
             print(
-                f"Escalation limit reached for {name}. No more events will be triggered."
+                f"CYCLE COMPLETE - Campaign ID: {campaign_id}, Name: {name}, "
+                f"All {max_events} events completed. Removing cycle job."
             )
+
+            # Get the scheduler and remove the job
+            scheduler_key = f"scheduler_{campaign_id}"
+            if scheduler_key in scheduler_registry:
+                scheduler = scheduler_registry[scheduler_key]
+                job_id = f"escalation_{campaign_id}"
+                try:
+                    scheduler.remove_job(job_id)
+                    print(
+                        f"Successfully removed cycle job {job_id} for campaign {campaign_id}"
+                    )
+                except JobLookupError:
+                    print(f"Warning: Cycle job {job_id} was already removed")
+            else:
+                print(f"Warning: No scheduler found for campaign {campaign_id}")
 
 
 class SchedulerService:
@@ -152,16 +187,14 @@ class SchedulerService:
             scheduler_registry[scheduler_key] = scheduler
 
             # Add job based on cycle schedule type
-            if campaign.cycle_schedule:
+            if campaign.campaign_schedule:
                 scheduler.add_job(
-                    tick_job,
-                    **campaign.cycle_schedule.create_job_config(),
+                    start_new_cycle,
+                    **campaign.campaign_schedule.create_job_config(),
                     args=[f"Campaign {campaign.name}", campaign.id],
                     id=f"tick_{campaign.id}",
                     replace_existing=True,
-                )  # Escalation jobs will be dynamically created by the tick_job
-            # If a campaign has an escalation_schedule configured, it will be used as a reference
-            # but the actual scheduling is handled by the tick_job
+                )
 
             scheduler.start()
         print(f"Started {len(self._schedulers)} schedulers")

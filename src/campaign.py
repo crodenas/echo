@@ -7,6 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from db.db_engine import echo_engine
 from db.schemas import CampaignSchema
 from models import Campaign
+from models import CronSchedule, IntervalSchedule, OneTimeSchedule
 
 
 def list_campaigns() -> List[Campaign]:
@@ -53,15 +54,16 @@ def delete_campaign(campaign: Campaign) -> None:
 # Utilities
 def to_domain(model: CampaignSchema) -> Campaign:
     "function"
+    campaign_schedule = deserialize_schedule(model.campaign_schedule)
     cycle_schedule = deserialize_schedule(model.cycle_schedule)
-    escalation_schedule = deserialize_schedule(model.escalation_schedule)
 
     return Campaign(
         id=model.id,
         name=model.name,
         description=model.description,
+        campaign_schedule=campaign_schedule,
         cycle_schedule=cycle_schedule,
-        escalation_schedule=escalation_schedule,
+        max_events=model.max_events,
     )
 
 
@@ -71,8 +73,9 @@ def to_schema(campaign: Campaign) -> CampaignSchema:
         id=campaign.id,
         name=campaign.name,
         description=campaign.description,
+        campaign_schedule=serialize_schedule(campaign.campaign_schedule),
         cycle_schedule=serialize_schedule(campaign.cycle_schedule),
-        escalation_schedule=serialize_schedule(campaign.escalation_schedule),
+        max_events=campaign.max_events,
     )
 
 
@@ -90,7 +93,6 @@ def serialize_schedule(schedule):
 
 def deserialize_schedule(schedule_dict):
     "function"
-    from models import CronSchedule, IntervalSchedule, OneTimeSchedule
 
     if schedule_dict is None:
         return None

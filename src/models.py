@@ -86,8 +86,9 @@ class Campaign:
     id: int | None
     name: str
     description: str | None
+    campaign_schedule: CronSchedule | IntervalSchedule | OneTimeSchedule | None
     cycle_schedule: CronSchedule | IntervalSchedule | OneTimeSchedule | None
-    escalation_schedule: CronSchedule | IntervalSchedule | OneTimeSchedule | None
+    max_events: int | None
 
 
 @dataclass

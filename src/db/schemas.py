@@ -16,8 +16,9 @@ class CampaignSchema(Base):
     name: Mapped[str] = mapped_column()
     description: Mapped[str | None] = mapped_column(nullable=True)
     # Using JSON column type to store schedule configurations
+    campaign_schedule: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     cycle_schedule: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    escalation_schedule: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    max_events: Mapped[int | None] = mapped_column(nullable=True)
 
 
 def create_tables(engine) -> None:
