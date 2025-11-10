@@ -15,9 +15,8 @@ class CampaignSchema(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     name: Mapped[str] = mapped_column()
     description: Mapped[str | None] = mapped_column(nullable=True)
-    # Using JSON column type to store schedule configurations
-    campaign_schedule: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    cycle_schedule: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    campaign_frequency: Mapped[int] = mapped_column()
+    cycle_frequency: Mapped[int] = mapped_column()
     max_events: Mapped[int | None] = mapped_column(nullable=True)
 
 
