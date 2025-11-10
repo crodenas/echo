@@ -2,14 +2,14 @@
 Scheduler utilities for creating one-time schedules.
 """
 
-from datetime import datetime
 import json
+from datetime import datetime
+
+import config
 from aws.scheduler import create_schedule
 
-TARGET_ARN: str = "arn:aws:sqs:us-east-2:891242332196:test_queue"
-EXECUTION_ROLE_ARN: str = (
-    "arn:aws:iam::891242332196:role/service-role/Amazon_EventBridge_Scheduler_SQS_32652038ad"
-)
+TARGET_ARN: str = config.TARGET_ARN
+EXECUTION_ROLE_ARN: str = config.EXECUTION_ROLE_ARN
 
 
 def create_one_time_schedule(
