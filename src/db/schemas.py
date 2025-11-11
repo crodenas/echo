@@ -1,6 +1,5 @@
 "module"
 
-from sqlalchemy import JSON
 from sqlalchemy.orm import Mapped, declarative_base, mapped_column
 
 from db.db_engine import echo_engine

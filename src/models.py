@@ -4,8 +4,30 @@ from dataclasses import dataclass
 
 
 @dataclass
+class CampaignCreate:
+    """Model for creating a new campaign (excludes id)."""
+
+    name: str
+    campaign_frequency: int  # in months
+    cycle_frequency: int  # in days
+    description: str | None = None
+    max_events: int | None = None
+
+
+@dataclass
+class CampaignUpdate:
+    """Model for updating an existing campaign (excludes id)."""
+
+    name: str
+    campaign_frequency: int  # in months
+    cycle_frequency: int  # in days
+    description: str | None = None
+    max_events: int | None = None
+
+
+@dataclass
 class Campaign:
-    "class"
+    """Full campaign model including id."""
 
     name: str
     campaign_frequency: int  # in months

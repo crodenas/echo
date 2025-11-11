@@ -4,7 +4,7 @@ from typing import List
 from fastapi import APIRouter, HTTPException
 
 from campaign import list_campaigns, add_campaign, update_campaign, get_campaign
-from models import Campaign
+from models import Campaign, CampaignCreate, CampaignUpdate
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
 
@@ -41,7 +41,7 @@ async def get_campaign_by_id_route(campaign_id: int):
 
 
 @router.post("/", response_model=Campaign)
-async def create_campaign(campaign: Campaign):
+async def create_campaign(campaign: CampaignCreate):
     """
     Create a new campaign.
 
@@ -51,11 +51,13 @@ async def create_campaign(campaign: Campaign):
     Returns:
         The created campaign with assigned ID
     """
-    return add_campaign(campaign)
+    # Convert to Campaign with id=None for creation
+    campaign_obj = Campaign(**campaign.__dict__, id=None)
+    return add_campaign(campaign_obj)
 
 
 @router.put("/{campaign_id}", response_model=Campaign)
-async def update_campaign_by_id(campaign_id: int, campaign: Campaign):
+async def update_campaign_by_id(campaign_id: int, campaign: CampaignUpdate):
     """
     Update an existing campaign.
 
@@ -69,9 +71,9 @@ async def update_campaign_by_id(campaign_id: int, campaign: Campaign):
     Raises:
         HTTPException: If campaign is not found
     """
-    # Ensure ID in path and body match
-    campaign.id = campaign_id
-    updated = update_campaign(campaign)
+    # Convert to Campaign with the provided id
+    campaign_obj = Campaign(**campaign.__dict__, id=campaign_id)
+    updated = update_campaign(campaign_obj)
     if not updated:
         raise HTTPException(status_code=404, detail=f"Campaign {campaign_id} not found")
     return updated
