@@ -10,7 +10,7 @@ def main():
     campaign_data = {
         "name": "SVT",
         "description": "Campaign with minute cycles and 5-second events per cycle",
-        "campaign_frequency": 1,
+        "campaign_frequency": "0 0 1 * *",
         "cycle_frequency": 5,
         "max_events": 5,
     }
