@@ -3,7 +3,13 @@
 from typing import List
 from fastapi import APIRouter, HTTPException
 
-from campaign import list_campaigns, add_campaign, update_campaign, get_campaign
+from campaign import (
+    list_campaigns,
+    add_campaign,
+    update_campaign,
+    get_campaign,
+    delete_campaign,
+)
 from models import Campaign, CampaignCreate, CampaignUpdate
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
@@ -77,3 +83,20 @@ async def update_campaign_by_id(campaign_id: int, campaign: CampaignUpdate):
     if not updated:
         raise HTTPException(status_code=404, detail=f"Campaign {campaign_id} not found")
     return updated
+
+
+@router.delete("/{campaign_id}", status_code=204)
+async def delete_campaign_by_id(campaign_id: int):
+    """
+    Delete a campaign by ID.
+
+    Args:
+        campaign_id: The ID of the campaign to delete
+
+    Raises:
+        HTTPException: If campaign is not found
+    """
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise HTTPException(status_code=404, detail=f"Campaign {campaign_id} not found")
+    delete_campaign(campaign_id)

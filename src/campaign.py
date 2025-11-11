@@ -20,12 +20,13 @@ def add_campaign(campaign: Campaign) -> Campaign:
         return to_domain(campaign_model)
 
 
-def delete_campaign(campaign: Campaign) -> None:
+def delete_campaign(campaign_id: int) -> None:
     "function"
     with sessionmaker(bind=echo_engine)() as session:
-        campaign_model = to_schema(campaign)
-        session.delete(campaign_model)
-        session.commit()
+        campaign_model = session.get(CampaignSchema, campaign_id)
+        if campaign_model:
+            session.delete(campaign_model)
+            session.commit()
 
 
 def get_campaign(campaign_id: int) -> Campaign | None:
