@@ -30,9 +30,8 @@ def delete_schedule_group(campaign: Campaign) -> None:
     scheduler.delete_schedule_group(name=group_name)
 
 
-def create_campaign_schedule(campaign: Campaign) -> None:
-    "function"
-    # EventBridge Scheduler expects UTC time
+def _build_schedule_params(campaign: Campaign) -> dict:
+    """Build common parameters for creating or updating a campaign schedule."""
     schedule_expression = campaign.campaign_schedule
 
     # For one-time schedules, flexible time window is OFF
@@ -50,16 +49,31 @@ def create_campaign_schedule(campaign: Campaign) -> None:
     group_name = f"campaign_{campaign.id}_group"
     description = f"Schedule for campaign {campaign.name} (ID: {campaign.id})"
 
+    return {
+        "name": schedule_name,
+        "schedule_expression": schedule_expression,
+        "flexible_time_window": flexible_time_window,
+        "target": target,
+        "group_name": group_name,
+        "description": description,
+        "state": "ENABLED",
+    }
+
+
+def create_campaign_schedule(campaign: Campaign) -> None:
+    "function"
+    params = _build_schedule_params(campaign)
+
     # Create the schedule
-    scheduler.create_schedule(
-        name=schedule_name,
-        schedule_expression=schedule_expression,
-        flexible_time_window=flexible_time_window,
-        target=target,
-        group_name=group_name,
-        description=description,
-        state="ENABLED",
-    )
+    scheduler.create_schedule(**params)
+
+
+def update_campaign_schedule(campaign: Campaign) -> None:
+    "function"
+    params = _build_schedule_params(campaign)
+
+    # Update the schedule
+    scheduler.update_schedule(**params)
 
 
 def get_campaign_schedule(campaign: Campaign) -> dict | None:

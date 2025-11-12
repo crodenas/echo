@@ -11,13 +11,13 @@ from scheduler import (
     create_campaign_schedule,
     create_schedule_group,
     delete_schedule_group,
+    update_campaign_schedule,
 )
 
 
 def add_campaign(campaign: Campaign) -> Campaign:
     "function"
     with sessionmaker(bind=echo_engine)() as session:
-
         campaign_model = to_schema(campaign)
         session.add(campaign_model)
         session.flush()  # Assign ID without committing
@@ -36,6 +36,21 @@ def add_campaign(campaign: Campaign) -> Campaign:
             raise e
 
         return new_campaign
+
+
+def update_campaign(campaign: Campaign) -> Campaign | None:
+    "function"
+    with sessionmaker(bind=echo_engine)() as session:
+        campaign_model = to_schema(campaign)
+        session.merge(campaign_model)
+        # Update schedule
+        try:
+            update_campaign_schedule(campaign=to_domain(campaign_model))
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            raise e
+        return to_domain(campaign_model)
 
 
 def delete_campaign(campaign_id: int) -> None:
@@ -61,16 +76,6 @@ def list_campaigns() -> List[Campaign]:
     with sessionmaker(bind=echo_engine)() as session:
         campaign_models = session.query(CampaignSchema).all()
     return [to_domain(campaign_model) for campaign_model in campaign_models]
-
-
-def update_campaign(campaign: Campaign) -> Campaign | None:
-    "function"
-    with sessionmaker(bind=echo_engine)() as session:
-        campaign_model = to_schema(campaign)
-        session.merge(campaign_model)
-        session.commit()
-        # Update schedule
-        return to_domain(campaign_model)
 
 
 # Utilities
