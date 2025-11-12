@@ -1,10 +1,12 @@
 """Module for loading sample campaigns into the database."""
 
+import asyncio
+
 import campaign as c
 from models import Campaign
 
 
-def main():
+async def main():
     "main"
     # Create just one campaign with the specified schedules
     campaign_data = {
@@ -23,8 +25,8 @@ def main():
         cycle_schedule=campaign_data["cycle_frequency"],
         max_events=campaign_data["max_events"],
     )
-    c.add_campaign(new_campaign)
+    await c.add_campaign(new_campaign)
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

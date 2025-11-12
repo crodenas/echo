@@ -15,7 +15,7 @@ from scheduler import (
 )
 
 
-def add_campaign(campaign: Campaign) -> Campaign:
+async def add_campaign(campaign: Campaign) -> Campaign:
     "function"
     with sessionmaker(bind=echo_engine)() as session:
         campaign_model = to_schema(campaign)
@@ -27,9 +27,9 @@ def add_campaign(campaign: Campaign) -> Campaign:
 
         try:
             # Create scheduler group
-            create_schedule_group(campaign=new_campaign)
+            await create_schedule_group(campaign=new_campaign)
             # Create campaign schedule
-            create_campaign_schedule(campaign=new_campaign)
+            await create_campaign_schedule(campaign=new_campaign)
             session.commit()  # Commit only after AWS operations succeed
         except Exception as e:
             session.rollback()  # Rollback if AWS fails
@@ -38,14 +38,14 @@ def add_campaign(campaign: Campaign) -> Campaign:
         return new_campaign
 
 
-def update_campaign(campaign: Campaign) -> Campaign | None:
+async def update_campaign(campaign: Campaign) -> Campaign | None:
     "function"
     with sessionmaker(bind=echo_engine)() as session:
         campaign_model = to_schema(campaign)
         session.merge(campaign_model)
         # Update schedule
         try:
-            update_campaign_schedule(campaign=to_domain(campaign_model))
+            await update_campaign_schedule(campaign=to_domain(campaign_model))
             session.commit()
         except Exception as e:
             session.rollback()
@@ -53,13 +53,13 @@ def update_campaign(campaign: Campaign) -> Campaign | None:
         return to_domain(campaign_model)
 
 
-def delete_campaign(campaign_id: int) -> None:
+async def delete_campaign(campaign_id: int) -> None:
     "function"
     with sessionmaker(bind=echo_engine)() as session:
         campaign_model = session.get(CampaignSchema, campaign_id)
         if campaign_model:
             # Delete campaign schedule group
-            delete_schedule_group(campaign=to_domain(campaign_model))
+            await delete_schedule_group(campaign=to_domain(campaign_model))
             session.delete(campaign_model)
             session.commit()
 

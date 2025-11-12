@@ -59,7 +59,7 @@ async def create_campaign(campaign: CampaignCreate):
     """
     # Convert to Campaign with id=None for creation
     campaign_obj = Campaign(**campaign.__dict__, id=None)
-    return add_campaign(campaign_obj)
+    return await add_campaign(campaign_obj)
 
 
 @router.put("/{campaign_id}", response_model=Campaign)
@@ -79,7 +79,7 @@ async def update_campaign_by_id(campaign_id: int, campaign: CampaignUpdate):
     """
     # Convert to Campaign with the provided id
     campaign_obj = Campaign(**campaign.__dict__, id=campaign_id)
-    updated = update_campaign(campaign_obj)
+    updated = await update_campaign(campaign_obj)
     if not updated:
         raise HTTPException(status_code=404, detail=f"Campaign {campaign_id} not found")
     return updated
@@ -99,4 +99,4 @@ async def delete_campaign_by_id(campaign_id: int):
     campaign = get_campaign(campaign_id)
     if not campaign:
         raise HTTPException(status_code=404, detail=f"Campaign {campaign_id} not found")
-    delete_campaign(campaign_id)
+    await delete_campaign(campaign_id)
