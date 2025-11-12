@@ -6,50 +6,52 @@ import json
 from datetime import datetime
 
 import config
-from aws.scheduler import create_schedule
+from aws import scheduler
+from models import Campaign
 
 TARGET_ARN: str = config.TARGET_ARN
 EXECUTION_ROLE_ARN: str = config.EXECUTION_ROLE_ARN
 
 
-def create_one_time_schedule(
-    run_datetime: datetime,
-    schedule_name: str,
-    target_arn: str = TARGET_ARN,
-    role_arn: str = EXECUTION_ROLE_ARN,
-    group_name: str = None,
-    description: str = None,
-) -> str:
-    """
-    Create a one-time EventBridge Scheduler schedule for the given datetime.
+def create_schedule_group(campaign: Campaign) -> None:
+    "function"
+    group_name = f"campaign_{campaign.id}_group"
+    tags = [{"Key": "CampaignID", "Value": str(campaign.id)}]
 
-    Args:
-        run_datetime: The datetime when the schedule should run (in UTC).
-        target_arn: The ARN of the target (e.g., Lambda function ARN).
-        role_arn: The ARN of the IAM role for EventBridge Scheduler.
-        schedule_name: Unique name for the schedule.
-        group_name: Optional schedule group name.
-        description: Optional description for the schedule.
+    # Create the schedule group
+    scheduler.create_schedule_group(name=group_name, tags=tags)
 
-    Returns:
-        The ARN of the created schedule.
-    """
-    # Format datetime to ISO 8601 string for the 'at()' expression
+
+def delete_schedule_group(campaign: Campaign) -> None:
+    "function"
+    group_name = f"campaign_{campaign.id}_group"
+
+    # Delete the schedule group
+    scheduler.delete_schedule_group(name=group_name)
+
+
+def create_campaign_schedule(campaign: Campaign) -> None:
+    "function"
     # EventBridge Scheduler expects UTC time
-    schedule_expression = f"at({run_datetime.strftime('%Y-%m-%dT%H:%M:%S')})"
+    schedule_expression = campaign.campaign_schedule
 
     # For one-time schedules, flexible time window is OFF
     flexible_time_window = {"Mode": "OFF"}
 
     # Create the target configuration
     target = {
-        "Arn": target_arn,
-        "Input": json.dumps({"MessageBody": "Hello from EventBridge Scheduler!"}),
-        "RoleArn": role_arn,
+        "Arn": TARGET_ARN,
+        "Input": json.dumps(
+            {"campaign_id": campaign.id, "timestamp": datetime.utcnow().isoformat()}
+        ),
+        "RoleArn": EXECUTION_ROLE_ARN,
     }
+    schedule_name = f"campaign_{campaign.id}_schedule"
+    group_name = f"campaign_{campaign.id}_group"
+    description = f"Schedule for campaign {campaign.name} (ID: {campaign.id})"
 
     # Create the schedule
-    response = create_schedule(
+    scheduler.create_schedule(
         name=schedule_name,
         schedule_expression=schedule_expression,
         flexible_time_window=flexible_time_window,
@@ -59,4 +61,11 @@ def create_one_time_schedule(
         state="ENABLED",
     )
 
-    return response.schedule_arn
+
+def get_campaign_schedule(campaign: Campaign) -> dict | None:
+    "function"
+    schedule_name = f"campaign_{campaign.id}_schedule"
+    group_name = f"campaign_{campaign.id}_group"
+
+    # Retrieve the schedule
+    return scheduler.get_schedule(name=schedule_name, group_name=group_name)

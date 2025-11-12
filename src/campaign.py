@@ -7,17 +7,27 @@ from sqlalchemy.orm import sessionmaker
 from db.db_engine import echo_engine
 from db.schemas import CampaignSchema
 from models import Campaign
+from scheduler import create_campaign_schedule, create_schedule_group
 
 
 def add_campaign(campaign: Campaign) -> Campaign:
     "function"
     with sessionmaker(bind=echo_engine)() as session:
+
         campaign_model = to_schema(campaign)
         session.add(campaign_model)
         session.commit()
         session.refresh(campaign_model)
-        # Create schedule
-        return to_domain(campaign_model)
+
+        # Update campaign with the generated ID
+        new_campaign = to_domain(campaign_model)
+
+        # Create scheduler group
+        create_schedule_group(campaign=new_campaign)
+        # Create campaign schedule
+        create_campaign_schedule(campaign=new_campaign)
+
+        return new_campaign
 
 
 def delete_campaign(campaign_id: int) -> None:
@@ -60,8 +70,8 @@ def to_domain(model: CampaignSchema) -> Campaign:
         id=model.id,
         name=model.name,
         description=model.description,
-        campaign_frequency=model.campaign_frequency,
-        cycle_frequency=model.cycle_frequency,
+        campaign_schedule=model.campaign_frequency,
+        cycle_schedule=model.cycle_frequency,
         max_events=model.max_events,
     )
 
@@ -72,7 +82,7 @@ def to_schema(campaign: Campaign) -> CampaignSchema:
         id=campaign.id,
         name=campaign.name,
         description=campaign.description,
-        campaign_frequency=campaign.campaign_frequency,
-        cycle_frequency=campaign.cycle_frequency,
+        campaign_frequency=campaign.campaign_schedule,
+        cycle_frequency=campaign.cycle_schedule,
         max_events=campaign.max_events,
     )

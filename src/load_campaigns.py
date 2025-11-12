@@ -19,8 +19,8 @@ def main():
         id=None,
         name=campaign_data["name"],
         description=campaign_data["description"],
-        campaign_frequency=campaign_data["campaign_frequency"],
-        cycle_frequency=campaign_data["cycle_frequency"],
+        campaign_schedule=campaign_data["campaign_frequency"],
+        cycle_schedule=campaign_data["cycle_frequency"],
         max_events=campaign_data["max_events"],
     )
     c.add_campaign(new_campaign)

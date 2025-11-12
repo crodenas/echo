@@ -8,8 +8,8 @@ class CampaignCreate:
     """Model for creating a new campaign (excludes id)."""
 
     name: str
-    campaign_frequency: str  # AWS crontab schedule
-    cycle_frequency: int  # in days
+    campaign_schedule: str  # AWS crontab schedule
+    cycle_schedule: str  # AWS crontab schedule
     description: str | None = None
     max_events: int | None = None
 
@@ -20,7 +20,7 @@ class CampaignUpdate:
 
     name: str
     campaign_frequency: str  # AWS crontab schedule
-    cycle_frequency: int  # in days
+    cycle_schedule: str  # AWS crontab schedule
     description: str | None = None
     max_events: int | None = None
 
@@ -30,8 +30,8 @@ class Campaign:
     """Full campaign model including id."""
 
     name: str
-    campaign_frequency: str  # AWS crontab schedule
-    cycle_frequency: int  # in days
+    campaign_schedule: str  # AWS crontab schedule
+    cycle_schedule: str  # AWS crontab schedule
     description: str | None = None
     max_events: int | None = None
     id: int | None = None
