@@ -16,16 +16,20 @@ def add_campaign(campaign: Campaign) -> Campaign:
 
         campaign_model = to_schema(campaign)
         session.add(campaign_model)
-        session.commit()
-        session.refresh(campaign_model)
+        session.flush()  # Assign ID without committing
 
         # Update campaign with the generated ID
         new_campaign = to_domain(campaign_model)
 
-        # Create scheduler group
-        create_schedule_group(campaign=new_campaign)
-        # Create campaign schedule
-        create_campaign_schedule(campaign=new_campaign)
+        try:
+            # Create scheduler group
+            create_schedule_group(campaign=new_campaign)
+            # Create campaign schedule
+            create_campaign_schedule(campaign=new_campaign)
+            session.commit()  # Commit only after AWS operations succeed
+        except Exception as e:
+            session.rollback()  # Rollback if AWS fails
+            raise e
 
         return new_campaign
 
