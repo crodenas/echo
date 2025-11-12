@@ -3,7 +3,7 @@ Scheduler utilities for creating one-time schedules.
 """
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 
 import config
 from aws import scheduler
@@ -41,7 +41,10 @@ def _build_schedule_params(campaign: Campaign) -> dict:
     target = {
         "Arn": TARGET_ARN,
         "Input": json.dumps(
-            {"campaign_id": campaign.id, "timestamp": datetime.utcnow().isoformat()}
+            {
+                "campaign_id": campaign.id,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
         ),
         "RoleArn": EXECUTION_ROLE_ARN,
     }
