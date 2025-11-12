@@ -7,7 +7,11 @@ from sqlalchemy.orm import sessionmaker
 from db.db_engine import echo_engine
 from db.schemas import CampaignSchema
 from models import Campaign
-from scheduler import create_campaign_schedule, create_schedule_group
+from scheduler import (
+    create_campaign_schedule,
+    create_schedule_group,
+    delete_schedule_group,
+)
 
 
 def add_campaign(campaign: Campaign) -> Campaign:
@@ -39,6 +43,8 @@ def delete_campaign(campaign_id: int) -> None:
     with sessionmaker(bind=echo_engine)() as session:
         campaign_model = session.get(CampaignSchema, campaign_id)
         if campaign_model:
+            # Delete campaign schedule group
+            delete_schedule_group(campaign=to_domain(campaign_model))
             session.delete(campaign_model)
             session.commit()
 

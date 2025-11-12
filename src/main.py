@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from api.routes.basic import router as basic_router
-from aws import validate_credentials
+from aws.utils import validate_credentials
 
 
 @asynccontextmanager
