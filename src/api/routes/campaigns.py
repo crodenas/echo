@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException
 
 from campaign import (
     list_campaigns,
-    add_campaign,
+    create_campaign,
     update_campaign,
     get_campaign,
     delete_campaign,
@@ -59,7 +59,7 @@ async def create_campaign(campaign: CampaignCreate):
     """
     # Convert to Campaign with id=None for creation
     campaign_obj = Campaign(**campaign.__dict__, id=None)
-    return await add_campaign(campaign_obj)
+    return await create_campaign(campaign_obj)
 
 
 @router.put("/{campaign_id}", response_model=Campaign)

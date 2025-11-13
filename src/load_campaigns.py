@@ -25,7 +25,7 @@ async def main():
         cycle_schedule=campaign_data["cycle_frequency"],
         max_events=campaign_data["max_events"],
     )
-    await c.add_campaign(new_campaign)
+    await c.create_campaign(new_campaign)
 
 
 if __name__ == "__main__":

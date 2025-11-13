@@ -16,7 +16,7 @@ from scheduler import (
 )
 
 
-async def add_campaign(campaign: Campaign) -> Campaign:
+async def create_campaign(campaign: Campaign) -> Campaign:
     "function"
     with sessionmaker(bind=echo_engine)() as session:
         campaign_model = to_schema(campaign)
