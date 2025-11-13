@@ -40,7 +40,7 @@ async def get_campaign_by_id_route(campaign_id: int):
     Raises:
         HTTPException: If campaign is not found
     """
-    campaign = get_campaign(campaign_id)
+    campaign = await get_campaign(campaign_id)
     if not campaign:
         raise HTTPException(status_code=404, detail=f"Campaign {campaign_id} not found")
     return campaign

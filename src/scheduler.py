@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 
 import config
 from aws import scheduler
+from aws.models.scheduler import Schedule
 from models import Campaign
 
 TARGET_ARN: str = config.TARGET_ARN
@@ -80,7 +81,7 @@ async def update_campaign_schedule(campaign: Campaign) -> None:
     await asyncio.to_thread(scheduler.update_schedule, **params)
 
 
-async def get_campaign_schedule(campaign: Campaign) -> dict | None:
+async def get_campaign_schedule(campaign: Campaign) -> Schedule | None:
     "function"
     schedule_name = f"campaign_{campaign.id}_schedule"
     group_name = f"campaign_{campaign.id}_group"

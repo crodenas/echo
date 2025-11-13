@@ -12,6 +12,7 @@ from scheduler import (
     create_schedule_group,
     delete_schedule_group,
     update_campaign_schedule,
+    get_campaign_schedule,
 )
 
 
@@ -64,11 +65,18 @@ async def delete_campaign(campaign_id: int) -> None:
             session.commit()
 
 
-def get_campaign(campaign_id: int) -> Campaign | None:
+async def get_campaign(campaign_id: int) -> Campaign | None:
     "function"
     with sessionmaker(bind=echo_engine)() as session:
         campaign_model = session.get(CampaignSchema, campaign_id)
-        return to_domain(campaign_model) if campaign_model else None
+        campaign_domain = to_domain(campaign_model) if campaign_model else None
+
+        # Get the schedule from AWS EventBridge
+        campaign_schedule = await get_campaign_schedule(campaign=campaign_domain)
+        if campaign_schedule:
+            campaign_domain.campaign_schedule = campaign_schedule.schedule_expression
+
+        return campaign_domain
 
 
 def list_campaigns() -> List[Campaign]:
