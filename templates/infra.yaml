@@ -1,0 +1,88 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation template for two SQS queues (SQS-managed SSE)'
+
+Resources:
+  Queue1:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: MyFirstQueue
+      VisibilityTimeout: 30
+      MaximumMessageSize: 262144
+      MessageRetentionPeriod: 345600
+      SqsManagedSseEnabled: true
+
+  Queue2:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: MySecondQueue
+      VisibilityTimeout: 30
+      MaximumMessageSize: 262144
+      MessageRetentionPeriod: 345600
+      SqsManagedSseEnabled: true
+
+  Queue1Policy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref Queue1
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowAccountPrincipalsToQueue1
+            Effect: Allow
+            Principal: '*'
+            Action:
+              - sqs:SendMessage
+              - sqs:ReceiveMessage
+              - sqs:DeleteMessage
+              - sqs:GetQueueAttributes
+            Resource: !GetAtt Queue1.Arn
+            Condition:
+              StringEquals:
+                aws:PrincipalAccount: !Ref AWS::AccountId
+
+  Queue2Policy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref Queue2
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowAccountPrincipalsToQueue2
+            Effect: Allow
+            Principal: '*'
+            Action:
+              - sqs:SendMessage
+              - sqs:ReceiveMessage
+              - sqs:DeleteMessage
+              - sqs:GetQueueAttributes
+            Resource: !GetAtt Queue2.Arn
+            Condition:
+              StringEquals:
+                aws:PrincipalAccount: !Ref AWS::AccountId
+
+Outputs:
+  Queue1Url:
+    Description: URL (Ref) of Queue1
+    Value: !Ref Queue1
+    Export:
+      Name: !Sub '${AWS::StackName}-Queue1Url'
+
+  Queue1Arn:
+    Description: ARN of Queue1
+    Value: !GetAtt Queue1.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-Queue1Arn'
+
+  Queue2Url:
+    Description: URL (Ref) of Queue2
+    Value: !Ref Queue2
+    Export:
+      Name: !Sub '${AWS::StackName}-Queue2Url'
+
+  Queue2Arn:
+    Description: ARN of Queue2
+    Value: !GetAtt Queue2.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-Queue2Arn'

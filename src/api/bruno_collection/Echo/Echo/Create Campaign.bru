@@ -1,0 +1,26 @@
+meta {
+  name: Create Campaign
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{url}}/campaigns/
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "name": "My First Campaign",
+    "campaign_schedule": "cron(*/10 * * * ? *)",
+    "cycle_schedule": "cron(*/1 * * * ? *)",
+    "description": "Campaign 1 Description",
+    "max_events": 4
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

@@ -12,7 +12,7 @@ from scheduler import (
     create_schedule_group,
     delete_schedule_group,
     update_campaign_schedule,
-    # get_campaign_schedule,
+    list_schedules,
 )
 
 
@@ -71,10 +71,12 @@ async def get_campaign(campaign_id: int) -> Campaign | None:
         campaign_model = session.get(CampaignSchema, campaign_id)
         campaign_domain = to_domain(campaign_model) if campaign_model else None
 
-        # Get the schedule from AWS EventBridge
-        # campaign_schedule = await get_campaign_schedule(campaign=campaign_domain)
-        # if campaign_schedule:
-        #     campaign_domain.campaign_schedule = campaign_schedule.schedule_expression
+        if campaign_domain:
+            # List schedules for the campaign
+            schedules = await list_schedules(campaign=campaign_domain)
+            print(f"Schedules for campaign {campaign_id}:")
+            for schedule in schedules:
+                print(f"- {schedule.name}: {schedule.schedule_expression}")
 
         return campaign_domain
 

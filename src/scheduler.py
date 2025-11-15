@@ -13,7 +13,8 @@ from aws import scheduler
 from aws.models.scheduler import Schedule
 from models import Campaign
 
-START_CYCLE_TARGET_ARN: str = config.TARGET_ARN
+QUEUE_1_ARN: str = config.QUEUE_1_ARN
+QUEUE_2_ARN: str = config.QUEUE_2_ARN
 EXECUTION_ROLE_ARN: str = config.EXECUTION_ROLE_ARN
 
 
@@ -34,6 +35,21 @@ async def delete_schedule_group(campaign: Campaign) -> None:
     await asyncio.to_thread(scheduler.delete_schedule_group, name=group_name)
 
 
+async def list_schedules(campaign: Campaign) -> list[Schedule]:
+    "function"
+    group_name = f"campaign_{campaign.id}_group"
+
+    # List schedules in the group
+    response = await asyncio.to_thread(scheduler.list_schedules, group_name=group_name)
+    schedules = []
+    for summary in response.schedules:
+        full_schedule = await asyncio.to_thread(
+            scheduler.get_schedule, name=summary.name, group_name=group_name
+        )
+        schedules.append(full_schedule)
+    return schedules
+
+
 def _build_campaign_schedule_params(campaign: Campaign) -> dict:
     """Build common parameters for creating or updating a campaign schedule."""
     schedule_expression = campaign.campaign_schedule
@@ -43,7 +59,7 @@ def _build_campaign_schedule_params(campaign: Campaign) -> dict:
 
     # Create the target configuration
     target = {
-        "Arn": START_CYCLE_TARGET_ARN,
+        "Arn": QUEUE_1_ARN,
         "Input": json.dumps(
             {
                 "campaign_id": campaign.id,
@@ -77,7 +93,7 @@ def _build_cycle_schedule_params(
 
     # Create the target configuration
     target = {
-        "Arn": START_CYCLE_TARGET_ARN,
+        "Arn": QUEUE_2_ARN,
         "Input": json.dumps(
             {
                 "campaign_id": campaign.id,
@@ -139,13 +155,13 @@ async def create_cycle_schedules(campaign: Campaign) -> dict:
     next_dates = cron_iter.get_next(datetime.now(timezone.utc), campaign.max_events)
     for count, next_execution in enumerate(next_dates):
         schedule_expression = next_execution.strftime("at(%Y-%m-%dT%H:%M:%S)")
-        # print(
-        #     f"Creating cycle schedule {count + 1}/{campaign.max_events} for campaign "
-        #     f"{campaign.id} at {schedule_expression}"
-        # )
-        # params = _build_cycle_schedule_params(campaign, schedule_expression, count + 1)
+        print(
+            f"Creating cycle schedule {count + 1}/{campaign.max_events} for campaign "
+            f"{campaign.id} at {schedule_expression}"
+        )
+        params = _build_cycle_schedule_params(campaign, schedule_expression, count + 1)
         # Create the cycle event schedule
-        # await asyncio.to_thread(scheduler.create_schedule, **params)
+        await asyncio.to_thread(scheduler.create_schedule, **params)
 
     return {
         "cycle_schedule": campaign.cycle_schedule,
