@@ -12,7 +12,7 @@ from scheduler import (
     create_schedule_group,
     delete_schedule_group,
     update_campaign_schedule,
-    get_campaign_schedule,
+    # get_campaign_schedule,
 )
 
 
@@ -72,9 +72,9 @@ async def get_campaign(campaign_id: int) -> Campaign | None:
         campaign_domain = to_domain(campaign_model) if campaign_model else None
 
         # Get the schedule from AWS EventBridge
-        campaign_schedule = await get_campaign_schedule(campaign=campaign_domain)
-        if campaign_schedule:
-            campaign_domain.campaign_schedule = campaign_schedule.schedule_expression
+        # campaign_schedule = await get_campaign_schedule(campaign=campaign_domain)
+        # if campaign_schedule:
+        #     campaign_domain.campaign_schedule = campaign_schedule.schedule_expression
 
         return campaign_domain
 
@@ -93,8 +93,8 @@ def to_domain(model: CampaignSchema) -> Campaign:
         id=model.id,
         name=model.name,
         description=model.description,
-        campaign_schedule=model.campaign_frequency,
-        cycle_schedule=model.cycle_frequency,
+        campaign_schedule=model.campaign_schedule,
+        cycle_schedule=model.cycle_schedule,
         max_events=model.max_events,
     )
 
@@ -105,7 +105,7 @@ def to_schema(campaign: Campaign) -> CampaignSchema:
         id=campaign.id,
         name=campaign.name,
         description=campaign.description,
-        campaign_frequency=campaign.campaign_schedule,
-        cycle_frequency=campaign.cycle_schedule,
+        campaign_schedule=campaign.campaign_schedule,
+        cycle_schedule=campaign.cycle_schedule,
         max_events=campaign.max_events,
     )

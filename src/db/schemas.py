@@ -14,8 +14,8 @@ class CampaignSchema(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     name: Mapped[str] = mapped_column()
     description: Mapped[str | None] = mapped_column(nullable=True)
-    campaign_frequency: Mapped[str] = mapped_column()
-    cycle_frequency: Mapped[int] = mapped_column()
+    campaign_schedule: Mapped[str] = mapped_column()
+    cycle_schedule: Mapped[int] = mapped_column()
     max_events: Mapped[int | None] = mapped_column(nullable=True)
 
 

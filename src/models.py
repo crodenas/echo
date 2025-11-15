@@ -19,7 +19,7 @@ class CampaignUpdate:
     """Model for updating an existing campaign (excludes id)."""
 
     name: str
-    campaign_frequency: str  # AWS crontab schedule
+    campaign_schedule: str  # AWS crontab schedule
     cycle_schedule: str  # AWS crontab schedule
     description: str | None = None
     max_events: int | None = None

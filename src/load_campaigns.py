@@ -1,9 +1,8 @@
 """Module for loading sample campaigns into the database."""
 
 import asyncio
-
-import campaign as c
 from models import Campaign
+import scheduler
 
 
 async def main():
@@ -11,9 +10,9 @@ async def main():
     # Create just one campaign with the specified schedules
     campaign_data = {
         "name": "SVT",
-        "description": "Campaign with minute cycles and 5-second events per cycle",
-        "campaign_frequency": "0 0 1 * *",
-        "cycle_frequency": 5,
+        "description": "Campaign with 5 minute cycles and 1 minute cycle event schedule",
+        "campaign_schedule": "cron(*/5 * * * ? *)",
+        "cycle_schedule": "*/1 * * * ? *",
         "max_events": 5,
     }
 
@@ -21,11 +20,16 @@ async def main():
         id=None,
         name=campaign_data["name"],
         description=campaign_data["description"],
-        campaign_schedule=campaign_data["campaign_frequency"],
-        cycle_schedule=campaign_data["cycle_frequency"],
+        campaign_schedule=campaign_data["campaign_schedule"],
+        cycle_schedule=campaign_data["cycle_schedule"],
         max_events=campaign_data["max_events"],
     )
-    await c.create_campaign(new_campaign)
+
+    result = await scheduler.create_cycle_schedules(new_campaign)
+
+    print("Cycle schedule parameters:")
+    for key, value in result.items():
+        print(f"{key}: {value}")
 
 
 if __name__ == "__main__":

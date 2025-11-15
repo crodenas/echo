@@ -11,6 +11,7 @@ def make_engine(db_url: str | URL, echo: bool = False) -> Engine:
     return create_engine(db_url, echo=echo)  # echo=True for SQL logging (optional)
 
 
+# TODO: Refactor to use config management
 # Get the absolute path to the data directory
 project_root = Path(__file__).parent.parent.parent
 data_dir = project_root / "src" / "data"

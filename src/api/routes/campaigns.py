@@ -3,13 +3,8 @@
 from typing import List
 from fastapi import APIRouter, HTTPException
 
-from campaign import (
-    list_campaigns,
-    create_campaign,
-    update_campaign,
-    get_campaign,
-    delete_campaign,
-)
+import campaign as lib_campaign
+
 from models import Campaign, CampaignCreate, CampaignUpdate
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
@@ -23,7 +18,7 @@ async def get_campaigns():
     Returns:
         List of all campaigns
     """
-    return list_campaigns()
+    return lib_campaign.list_campaigns()
 
 
 @router.get("/{campaign_id}", response_model=Campaign)
@@ -40,7 +35,7 @@ async def get_campaign_by_id_route(campaign_id: int):
     Raises:
         HTTPException: If campaign is not found
     """
-    campaign = await get_campaign(campaign_id)
+    campaign = await lib_campaign.get_campaign(campaign_id)
     if not campaign:
         raise HTTPException(status_code=404, detail=f"Campaign {campaign_id} not found")
     return campaign
@@ -58,8 +53,15 @@ async def create_campaign(campaign: CampaignCreate):
         The created campaign with assigned ID
     """
     # Convert to Campaign with id=None for creation
-    campaign_obj = Campaign(**campaign.__dict__, id=None)
-    return await create_campaign(campaign_obj)
+    campaign_obj = Campaign(
+        name=campaign.name,
+        campaign_schedule=campaign.campaign_schedule,
+        cycle_schedule=campaign.cycle_schedule,
+        description=campaign.description,
+        max_events=campaign.max_events,
+        id=None,
+    )
+    return await lib_campaign.create_campaign(campaign_obj)
 
 
 @router.put("/{campaign_id}", response_model=Campaign)
@@ -78,8 +80,15 @@ async def update_campaign_by_id(campaign_id: int, campaign: CampaignUpdate):
         HTTPException: If campaign is not found
     """
     # Convert to Campaign with the provided id
-    campaign_obj = Campaign(**campaign.__dict__, id=campaign_id)
-    updated = await update_campaign(campaign_obj)
+    campaign_obj = Campaign(
+        name=campaign.name,
+        campaign_schedule=campaign.campaign_schedule,
+        cycle_schedule=campaign.cycle_schedule,
+        description=campaign.description,
+        max_events=campaign.max_events,
+        id=campaign_id,
+    )
+    updated = await lib_campaign.update_campaign(campaign_obj)
     if not updated:
         raise HTTPException(status_code=404, detail=f"Campaign {campaign_id} not found")
     return updated
@@ -96,7 +105,7 @@ async def delete_campaign_by_id(campaign_id: int):
     Raises:
         HTTPException: If campaign is not found
     """
-    campaign = get_campaign(campaign_id)
+    campaign = await lib_campaign.get_campaign(campaign_id)
     if not campaign:
         raise HTTPException(status_code=404, detail=f"Campaign {campaign_id} not found")
-    await delete_campaign(campaign_id)
+    await lib_campaign.delete_campaign(campaign_id)
