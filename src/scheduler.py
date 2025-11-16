@@ -11,10 +11,12 @@ from aws_croniter import AwsCroniter
 import config
 from aws import scheduler
 from aws.models.scheduler import Schedule
+from aws.sqs import SQSMessage
 from models import Campaign
+import campaign as campaign_module
 
-QUEUE_1_ARN: str = config.QUEUE_1_ARN
-QUEUE_2_ARN: str = config.QUEUE_2_ARN
+QUEUE_1_URL: str = config.QUEUE_1_URL
+QUEUE_2_URL: str = config.QUEUE_2_URL
 EXECUTION_ROLE_ARN: str = config.EXECUTION_ROLE_ARN
 
 
@@ -168,3 +170,31 @@ async def create_cycle_schedules(campaign: Campaign) -> dict:
         "max_events": campaign.max_events,
         "next_execution_dates": next_dates,
     }
+
+
+def queue_1_handler(message: SQSMessage) -> None:
+    "function"
+    print(f"Processing message from Queue 1: {message.body}")
+    campaign_id = json.loads(message.body).get("campaign_id")
+    if campaign_id:
+        campaign = asyncio.run(campaign_module.get_campaign(campaign_id))
+        if campaign:
+            print(f"Retrieved campaign: {campaign}")
+        else:
+            print(f"Campaign with ID {campaign_id} not found.")
+
+
+if __name__ == "__main__":
+    from queue_watcher import create_sqs_consumer
+
+    handler1 = create_sqs_consumer(queue_url=QUEUE_1_URL, max_messages=3)
+    handler1.start(queue_1_handler)
+
+
+# Processing message from Queue 1: {"campaign_id": 1, "timestamp": "2025-11-15T20:51:31.533442+00:00"}
+# Processing message from Queue 1: {"campaign_id": 1, "timestamp": "2025-11-15T20:51:31.533442+00:00"}
+# Processing message from Queue 1: {"campaign_id": 1, "timestamp": "2025-11-15T20:51:31.533442+00:00"}
+# Processing message from Queue 1: {"campaign_id": 1, "timestamp": "2025-11-15T20:51:31.533442+00:00"}
+# Processing message from Queue 1: {"campaign_id": 1, "timestamp": "2025-11-15T20:51:31.533442+00:00"}
+# Processing message from Queue 1: {"campaign_id": 2, "timestamp": "2025-11-15T20:58:34.632131+00:00"}
+# Processing message from Queue 1: {"campaign_id": 1, "timestamp": "2025-11-15T18:41:46.041405+00:00"}
