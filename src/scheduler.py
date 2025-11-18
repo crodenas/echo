@@ -172,23 +172,16 @@ async def create_cycle_schedules(campaign: Campaign) -> dict:
     }
 
 
-def queue_1_handler(message: SQSMessage) -> None:
+async def queue_1_handler(message: SQSMessage) -> None:
     "function"
     print(f"Processing message from Queue 1: {message.body}")
     campaign_id = json.loads(message.body).get("campaign_id")
     if campaign_id:
-        campaign = asyncio.run(campaign_module.get_campaign(campaign_id))
+        campaign = await campaign_module.get_campaign(campaign_id)
         if campaign:
             print(f"Retrieved campaign: {campaign}")
         else:
             print(f"Campaign with ID {campaign_id} not found.")
-
-
-if __name__ == "__main__":
-    from queue_watcher import create_sqs_consumer
-
-    handler1 = create_sqs_consumer(queue_url=QUEUE_1_URL, max_messages=3)
-    handler1.start(queue_1_handler)
 
 
 # Processing message from Queue 1: {"campaign_id": 1, "timestamp": "2025-11-15T20:51:31.533442+00:00"}

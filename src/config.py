@@ -4,7 +4,7 @@
 # QUEUE_1_URL: str = "https://sqs.us-east-2.amazonaws.com/891242332196/MyFirstQueue"
 QUEUE_1_URL: str = "https://sqs.us-east-2.amazonaws.com/891242332196/test_queue"
 QUEUE_2_URL: str = "https://sqs.us-east-2.amazonaws.com/891242332196/MySecondQueue"
-# QUEUE_1_ARN: str = "arn:aws:sqs:us-east-2:891242332196:MyFirstQueue"
+QUEUE_1_ARN: str = "arn:aws:sqs:us-east-2:891242332196:MyFirstQueue"
 QUEUE_2_ARN: str = "arn:aws:sqs:us-east-2:891242332196:MySecondQueue"
 
 # Role ARN for EventBridge Scheduler to invoke targets
