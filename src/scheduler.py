@@ -8,15 +8,17 @@ from datetime import datetime, timezone
 
 from aws_croniter import AwsCroniter
 
-import config
-from aws import scheduler
-from aws.models.scheduler import Schedule
-from aws.sqs import SQSMessage
-from models import Campaign
-import campaign as campaign_module
+from . import config
+from .aws import scheduler
+from .aws.models.scheduler import Schedule
+from .aws.sqs import SQSMessage
+from .models import Campaign
+from . import campaign as campaign_module
 
 QUEUE_1_URL: str = config.QUEUE_1_URL
+QUEUE_1_ARN: str = config.QUEUE_1_ARN
 QUEUE_2_URL: str = config.QUEUE_2_URL
+QUEUE_2_ARN: str = config.QUEUE_2_ARN
 EXECUTION_ROLE_ARN: str = config.EXECUTION_ROLE_ARN
 
 
@@ -105,7 +107,7 @@ def _build_cycle_schedule_params(
         ),
         "RoleArn": EXECUTION_ROLE_ARN,
     }
-    schedule_name = f"campaign_{campaign.id}_schedule"
+    schedule_name = f"campaign_{campaign.id}_cycle_{count}_schedule"
     group_name = f"campaign_{campaign.id}_group"
     description = (
         f"Schedule for campaign {campaign.name} (ID: {campaign.id}, cycle {count})"
@@ -119,6 +121,7 @@ def _build_cycle_schedule_params(
         "group_name": group_name,
         "description": description,
         "state": "ENABLED",
+        "action_after_completion": "DELETE",
     }
 
 
@@ -149,11 +152,21 @@ async def get_campaign_schedule(campaign: Campaign) -> Schedule | None:
     )
 
 
-async def create_cycle_schedules(campaign: Campaign) -> dict:
+def strip_cron_wrapper(cron_expression: str) -> str:
+    "function"
+    expr = cron_expression.strip()
+    if expr.startswith("cron(") and expr.endswith(")"):
+        return expr[5:-1]
+    return expr
+
+
+async def create_cycle_schedules(campaign: Campaign) -> None:
     "function"
     # We want to use the cycle schedule expression to create campaign.max_events one-time
     # schedules that will trigger the campaign cycle execution.
-    cron_iter = AwsCroniter(campaign.cycle_schedule)
+    # Strip 'cron()' wrapper if present
+    cycle_expr = strip_cron_wrapper(campaign.cycle_schedule)
+    cron_iter = AwsCroniter(cycle_expr)
     next_dates = cron_iter.get_next(datetime.now(timezone.utc), campaign.max_events)
     for count, next_execution in enumerate(next_dates):
         schedule_expression = next_execution.strftime("at(%Y-%m-%dT%H:%M:%S)")
@@ -165,12 +178,6 @@ async def create_cycle_schedules(campaign: Campaign) -> dict:
         # Create the cycle event schedule
         await asyncio.to_thread(scheduler.create_schedule, **params)
 
-    return {
-        "cycle_schedule": campaign.cycle_schedule,
-        "max_events": campaign.max_events,
-        "next_execution_dates": next_dates,
-    }
-
 
 async def queue_1_handler(message: SQSMessage) -> None:
     "function"
@@ -180,14 +187,6 @@ async def queue_1_handler(message: SQSMessage) -> None:
         campaign = await campaign_module.get_campaign(campaign_id)
         if campaign:
             print(f"Retrieved campaign: {campaign}")
+            await create_cycle_schedules(campaign)
         else:
             print(f"Campaign with ID {campaign_id} not found.")
-
-
-# Processing message from Queue 1: {"campaign_id": 1, "timestamp": "2025-11-15T20:51:31.533442+00:00"}
-# Processing message from Queue 1: {"campaign_id": 1, "timestamp": "2025-11-15T20:51:31.533442+00:00"}
-# Processing message from Queue 1: {"campaign_id": 1, "timestamp": "2025-11-15T20:51:31.533442+00:00"}
-# Processing message from Queue 1: {"campaign_id": 1, "timestamp": "2025-11-15T20:51:31.533442+00:00"}
-# Processing message from Queue 1: {"campaign_id": 1, "timestamp": "2025-11-15T20:51:31.533442+00:00"}
-# Processing message from Queue 1: {"campaign_id": 2, "timestamp": "2025-11-15T20:58:34.632131+00:00"}
-# Processing message from Queue 1: {"campaign_id": 1, "timestamp": "2025-11-15T18:41:46.041405+00:00"}

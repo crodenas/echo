@@ -5,7 +5,7 @@ import asyncio
 import inspect
 from typing import Callable, Any
 
-from aws import sqs
+from .aws import sqs
 
 
 class SQSConsumer:
@@ -29,11 +29,11 @@ class SQSConsumer:
                 for message in messages:
                     try:
                         handler(message)
-                        # Delete after successful processing (uncomment when ready)
-                        # sqs.delete_message(
-                        #     queue_url=self.queue_url,
-                        #     receipt_handle=message.receipt_handle,
-                        # )
+                        # Delete after successful processing
+                        sqs.delete_message(
+                            queue_url=self.queue_url,
+                            receipt_handle=message.receipt_handle,
+                        )
                     except Exception as e:
                         print(f"Error processing message: {e}")
             except Exception as e:
@@ -63,12 +63,12 @@ class SQSConsumer:
                             result = handler(message)
                             if inspect.iscoroutine(result):
                                 await result
-                            # Delete after successful processing (uncomment when ready)
-                            # await asyncio.to_thread(
-                            #     sqs.delete_message,
-                            #     queue_url=self.queue_url,
-                            #     receipt_handle=message.receipt_handle,
-                            # )
+                            # Delete after successful processing
+                            await asyncio.to_thread(
+                                sqs.delete_message,
+                                queue_url=self.queue_url,
+                                receipt_handle=message.receipt_handle,
+                            )
                         except Exception as e:
                             print(f"Error processing message asynchronously: {e}")
                 except Exception as e:
