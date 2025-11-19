@@ -6,12 +6,6 @@ consumers using the asynchronous consumer implementation.
 
 import asyncio
 
-# # Ensure this 'src' directory is on sys.path so top-level imports like 'api', 'aws'
-# # work when running without PYTHONPATH=src.
-# _CURRENT_DIR = os.path.dirname(__file__)
-# if _CURRENT_DIR not in sys.path:
-#     sys.path.insert(0, _CURRENT_DIR)
-
 from fastapi import FastAPI
 
 from api.routes.basic import router as basic_router

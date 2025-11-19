@@ -9,10 +9,10 @@ from datetime import datetime, timezone
 from aws_croniter import AwsCroniter
 
 from core import config
+from core.models import Campaign
 from libs.aws import scheduler
 from libs.aws.models.scheduler import Schedule
 from libs.aws.sqs import SQSMessage
-from core.models import Campaign
 
 QUEUE_1_URL: str = config.QUEUE_1_URL
 QUEUE_1_ARN: str = config.QUEUE_1_ARN
