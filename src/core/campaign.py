@@ -4,8 +4,8 @@ from typing import List
 
 from sqlalchemy.orm import sessionmaker
 
-from .db.db_engine import echo_engine
-from .db.schemas import CampaignSchema
+from ..db.db_engine import echo_engine
+from ..db.schemas import CampaignSchema
 from .models import Campaign
 from .scheduler import (
     create_campaign_schedule,

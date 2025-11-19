@@ -3,9 +3,8 @@
 from typing import List
 from fastapi import APIRouter, HTTPException
 
-import campaign as lib_campaign
-
-from models import Campaign, CampaignCreate, CampaignUpdate
+from ...core import campaign as lib_campaign
+from ...core.models import Campaign, CampaignCreate, CampaignUpdate
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
 

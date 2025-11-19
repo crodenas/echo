@@ -9,11 +9,10 @@ from datetime import datetime, timezone
 from aws_croniter import AwsCroniter
 
 from . import config
-from .aws import scheduler
-from .aws.models.scheduler import Schedule
-from .aws.sqs import SQSMessage
+from ..aws import scheduler
+from ..aws.models.scheduler import Schedule
+from ..aws.sqs import SQSMessage
 from .models import Campaign
-from . import campaign as campaign_module
 
 QUEUE_1_URL: str = config.QUEUE_1_URL
 QUEUE_1_ARN: str = config.QUEUE_1_ARN
@@ -184,6 +183,9 @@ async def queue_1_handler(message: SQSMessage) -> None:
     print(f"Processing message from Queue 1: {message.body}")
     campaign_id = json.loads(message.body).get("campaign_id")
     if campaign_id:
+        # Local import to avoid circular dependency with campaign module
+        from . import campaign as campaign_module
+
         campaign = await campaign_module.get_campaign(campaign_id)
         if campaign:
             print(f"Retrieved campaign: {campaign}")

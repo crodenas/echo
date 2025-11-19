@@ -17,10 +17,11 @@ if _CURRENT_DIR not in sys.path:
 from fastapi import FastAPI
 
 from .api.routes.basic import router as basic_router
+from .api.routes.campaigns import router as campaigns_router
 from .aws.utils import validate_credentials
-from .queue_watcher import create_sqs_consumer
-from . import config
-from .scheduler import queue_1_handler
+from .utils.queue_watcher import create_sqs_consumer
+from .core import config
+from .core.scheduler import queue_1_handler
 
 # Validate AWS credentials on import
 validate_credentials()
@@ -33,12 +34,7 @@ app = FastAPI(
 
 # Include routers
 app.include_router(basic_router)
-try:
-    from api.routes.campaigns import router as campaigns_router
-
-    app.include_router(campaigns_router)
-except ImportError as e:
-    print(f"Warning: Campaign routes could not be loaded - {e}")
+app.include_router(campaigns_router)
 
 
 # ---------------------------------------------------------------------------
