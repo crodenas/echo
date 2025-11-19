@@ -5,25 +5,24 @@ consumers using the asynchronous consumer implementation.
 """
 
 import asyncio
-import os
-import sys
 
-# Ensure this 'src' directory is on sys.path so top-level imports like 'api', 'aws'
-# work when running without PYTHONPATH=src.
-_CURRENT_DIR = os.path.dirname(__file__)
-if _CURRENT_DIR not in sys.path:
-    sys.path.insert(0, _CURRENT_DIR)
+# # Ensure this 'src' directory is on sys.path so top-level imports like 'api', 'aws'
+# # work when running without PYTHONPATH=src.
+# _CURRENT_DIR = os.path.dirname(__file__)
+# if _CURRENT_DIR not in sys.path:
+#     sys.path.insert(0, _CURRENT_DIR)
 
 from fastapi import FastAPI
 
-from .api.routes.basic import router as basic_router
-from .api.routes.campaigns import router as campaigns_router
-from .aws.utils import validate_credentials
-from .utils.queue_watcher import create_sqs_consumer
-from .core import config
-from .core.scheduler import queue_1_handler
+from api.routes.basic import router as basic_router
+from api.routes.campaigns import router as campaigns_router
+from libs.aws.utils import validate_credentials
+from utils.queue_watcher import create_sqs_consumer
+from core import config
+from core.scheduler import queue_1_handler
 
 # Validate AWS credentials on import
+# I don't like this.  Consider removing it.
 validate_credentials()
 
 app = FastAPI(

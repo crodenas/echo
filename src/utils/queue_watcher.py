@@ -5,7 +5,7 @@ import asyncio
 import inspect
 from typing import Callable, Any
 
-from ..aws import sqs
+from libs.aws import sqs
 
 
 class SQSConsumer:

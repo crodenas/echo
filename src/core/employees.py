@@ -2,8 +2,8 @@
 
 from typing import Optional
 
-from ..db import db_json
-from .models import Employee
+from db import db_json
+from core.models import Employee
 
 employee_db = db_json.get_db("data/Employees.json")
 
