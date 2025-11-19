@@ -27,7 +27,7 @@ async def create_campaign(campaign: Campaign) -> Campaign:
         new_campaign = to_domain(campaign_model)
 
         try:
-            # Create scheduler group
+            # Create schedule group
             await create_schedule_group(campaign=new_campaign)
             # Create campaign schedule
             await create_campaign_schedule(campaign=new_campaign)
