@@ -192,3 +192,13 @@ async def queue_1_handler(message: SQSMessage) -> None:
             await create_cycle_schedules(campaign)
         else:
             print(f"Campaign with ID {campaign_id} not found.")
+
+
+async def queue_2_handler(message: SQSMessage) -> None:
+    "function"
+    # {"campaign_id": 1, "cycle_count": 1, "timestamp": "2025-11-19T01:10:49.438461+00:00"}
+    print(f"Processing message from Queue 2: {message.body}")
+    campaign_id = json.loads(message.body).get("campaign_id")
+    cycle_count = json.loads(message.body).get("cycle_count")
+    print(f"Campaign ID: {campaign_id}, Cycle Count: {cycle_count}")
+    # this is where we would trigger the campaign cycle execution logic

@@ -2,11 +2,12 @@
 
 import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
-from utils.queue_watcher import create_sqs_consumer
-from core import config
-from core.scheduler import queue_1_handler
 
+from fastapi import FastAPI
+
+from core import config
+from core.scheduler import queue_1_handler, queue_2_handler
+from utils.queue_watcher import create_sqs_consumer
 
 # ---------------------------------------------------------------------------
 # Asynchronous SQS Consumers
@@ -29,10 +30,10 @@ async def lifespan(_app: FastAPI):
     """
     # Startup: Create and start SQS consumers
     consumer1 = create_sqs_consumer(config.QUEUE_1_URL, max_messages=5)
-    # consumer2 = create_sqs_consumer(config.QUEUE_2_URL, max_messages=5)
-    _consumers.extend([consumer1])
+    consumer2 = create_sqs_consumer(config.QUEUE_2_URL, max_messages=5)
+    _consumers.extend([consumer1, consumer2])
     _consumer_tasks.append(asyncio.create_task(consumer1.start_async(queue_1_handler)))
-    # _consumer_tasks.append(asyncio.create_task(consumer2.start_async(queue_1_handler)))
+    _consumer_tasks.append(asyncio.create_task(consumer2.start_async(queue_2_handler)))
     print("SQS consumers started (async).")
 
     yield  # Application runs here

@@ -1,7 +1,6 @@
 """Main module for the Echo application.
 
-Initializes FastAPI application, sets up routing, and starts background SQS
-consumers using the asynchronous consumer implementation.
+Initializes FastAPI application, sets up routing, and manages application lifespan.
 """
 
 from fastapi import FastAPI
