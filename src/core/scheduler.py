@@ -166,9 +166,18 @@ async def create_cycle_schedules(campaign: Campaign) -> None:
     # Strip 'cron()' wrapper if present
     cycle_expr = strip_cron_wrapper(campaign.cycle_schedule)
     cron_iter = AwsCroniter(cycle_expr)
-    next_dates = cron_iter.get_next(datetime.now(timezone.utc), campaign.max_events)
+    next_dates = cron_iter.get_next(
+        from_date=datetime.now(timezone.utc), n=campaign.max_events
+    )
     for count, next_execution in enumerate(next_dates):
-        schedule_expression = next_execution.strftime("at(%Y-%m-%dT%H:%M:%S)")
+        # it's only possible to have None here if the cron expression is invalid (or n=0?), so shouldn't happen
+        if next_execution is not None:
+            schedule_expression = next_execution.strftime("at(%Y-%m-%dT%H:%M:%S)")
+        else:
+            print(
+                f"Skipping schedule creation for campaign {campaign.id} due to None next_execution."
+            )
+            continue
         print(
             f"Creating cycle schedule {count + 1}/{campaign.max_events} for campaign "
             f"{campaign.id} at {schedule_expression}"

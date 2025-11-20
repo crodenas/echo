@@ -10,8 +10,8 @@ class CampaignCreate:
     name: str
     campaign_schedule: str  # AWS crontab schedule
     cycle_schedule: str  # AWS crontab schedule
-    description: str | None = None
-    max_events: int | None = None
+    description: str
+    max_events: int
 
 
 @dataclass
@@ -21,8 +21,8 @@ class CampaignUpdate:
     name: str
     campaign_schedule: str  # AWS crontab schedule
     cycle_schedule: str  # AWS crontab schedule
-    description: str | None = None
-    max_events: int | None = None
+    description: str
+    max_events: int
 
 
 @dataclass
@@ -32,8 +32,8 @@ class Campaign:
     name: str
     campaign_schedule: str  # AWS crontab schedule
     cycle_schedule: str  # AWS crontab schedule
-    description: str | None = None
-    max_events: int | None = None
+    description: str
+    max_events: int
     id: int | None = None
 
 
