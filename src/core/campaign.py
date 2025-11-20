@@ -4,16 +4,16 @@ from typing import List
 
 from sqlalchemy.orm import sessionmaker
 
-from db.db_engine import echo_engine
-from db.schemas import CampaignSchema
 from core.models import Campaign
 from core.scheduler import (
     create_campaign_schedule,
     create_schedule_group,
     delete_schedule_group,
-    update_campaign_schedule,
     list_schedules,
+    update_campaign_schedule,
 )
+from db.db_engine import echo_engine
+from db.schemas import CampaignSchema
 
 
 async def create_campaign(campaign: Campaign) -> Campaign:

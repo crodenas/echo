@@ -1,6 +1,7 @@
 """Campaign routes for the Echo application."""
 
 from typing import List
+
 from fastapi import APIRouter, HTTPException
 
 from core import campaign as lib_campaign

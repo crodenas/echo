@@ -1,9 +1,9 @@
 "module"
 
-import time
 import asyncio
 import inspect
-from typing import Callable, Any
+import time
+from typing import Any, Callable
 
 from libs.aws import sqs
 
@@ -24,7 +24,7 @@ class SQSConsumer:
                 messages = sqs.receive_message(
                     queue_url=self.queue_url,
                     max_number_of_messages=self.max_messages,
-                    wait_time_seconds=20,
+                    wait_time_seconds=5,
                 )
                 for message in messages:
                     try:
@@ -56,7 +56,7 @@ class SQSConsumer:
                         sqs.receive_message,
                         queue_url=self.queue_url,
                         max_number_of_messages=self.max_messages,
-                        wait_time_seconds=20,
+                        wait_time_seconds=5,
                     )
                     for message in messages:
                         try:
