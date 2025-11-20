@@ -9,12 +9,6 @@ from fastapi import FastAPI
 from api.routes.basic import router as basic_router
 from api.routes.campaigns import router as campaigns_router
 from core.lifecycle import lifespan
-from libs.aws.utils import validate_credentials
-
-# Validate AWS credentials on import
-# I don't like this.  Consider removing it.
-validate_credentials()
-
 
 app = FastAPI(
     title="Echo API",
