@@ -32,8 +32,8 @@ class Campaign:
     name: str
     campaign_schedule: str  # AWS crontab schedule
     cycle_schedule: str  # AWS crontab schedule
-    description: str
-    max_events: int
+    description: str | None
+    max_events: int | None
     id: int | None = None
 
 
