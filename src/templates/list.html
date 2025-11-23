@@ -3,21 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Campaign List</title>
+    <title>Echo - Campaigns</title>
 </head>
 <body>
     <h1>Campaigns</h1>
+    <a href="/create">Create New Campaign</a>
     <ul>
         {% for campaign in campaigns %}
         <li>
-            <strong>{{ campaign.name }}</strong><br>
-            Description: {{ campaign.description or 'N/A' }}<br>
-            Campaign Schedule: {{ campaign.campaign_schedule }}<br>
-            Cycle Schedule: {{ campaign.cycle_schedule }}<br>
-            Max Events: {{ campaign.max_events or 'N/A' }}<br>
-            ID: {{ campaign.id }}
+            <strong>{{ campaign.name }}</strong> (ID: {{ campaign.id }})
+            <a href="/view?campaign_id={{ campaign.id }}">View</a>
+            <a href="/edit?campaign_id={{ campaign.id }}">Edit</a>
         </li>
         {% endfor %}
     </ul>
+    <nav>
+        <a href="/">Home</a>
+    </nav>
 </body>
-</html></content>
+</html>

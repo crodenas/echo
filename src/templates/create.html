@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Echo - Create Campaign</title>
+</head>
+<body>
+    <h1>Create New Campaign</h1>
+    <form action="/campaigns/" method="post">
+        <label for="name">Name:</label>
+        <input type="text" id="name" name="name" required><br>
+
+        <label for="description">Description:</label>
+        <textarea id="description" name="description"></textarea><br>
+
+        <label for="campaign_schedule">Campaign Schedule:</label>
+        <input type="text" id="campaign_schedule" name="campaign_schedule" required><br>
+
+        <label for="cycle_schedule">Cycle Schedule:</label>
+        <input type="text" id="cycle_schedule" name="cycle_schedule" required><br>
+
+        <label for="max_events">Max Events:</label>
+        <input type="number" id="max_events" name="max_events" required><br>
+
+        <button type="submit">Create</button>
+    </form>
+    <nav>
+        <a href="/list">Back to List</a>
+        <a href="/">Home</a>
+    </nav>
+</body>
+</html>
