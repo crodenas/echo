@@ -3,7 +3,7 @@
 Initializes FastAPI application, sets up routing, and manages application lifespan.
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, APIRouter
 
 from api.routes.basic import router as basic_router
 from api.routes.campaigns import router as campaigns_router
@@ -16,6 +16,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Create API router with /api prefix
+api_router = APIRouter(prefix="/api")
+api_router.include_router(campaigns_router)
+
 # Include routers
 app.include_router(basic_router)
-app.include_router(campaigns_router)
+app.include_router(api_router)
