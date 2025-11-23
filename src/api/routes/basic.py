@@ -1,27 +1,27 @@
 """Basic routes for the Echo application."""
 
-from typing import Union
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+
+from core import campaign as lib_campaign
 
 router = APIRouter()
+templates = Jinja2Templates(directory="templates")
 
 
-@router.get("/")
-async def read_root():
+@router.get("/", response_class=HTMLResponse, include_in_schema=False)
+async def read_root(request: Request):
     """Root endpoint returning a simple greeting."""
-    return {"Hello": "World"}
+    return templates.TemplateResponse(
+        "index.html", {"request": request, "message": "Hello World!"}
+    )
 
 
-@router.get("/items/{item_id}")
-async def read_item(item_id: int, q: Union[str, None] = None):
-    """
-    Get item details by ID.
-
-    Args:
-        item_id: The ID of the item to retrieve
-        q: Optional query parameter
-
-    Returns:
-        Dict containing item_id and query parameter
-    """
-    return {"item_id": item_id, "q": q}
+@router.get("/list", response_class=HTMLResponse, include_in_schema=False)
+async def list_campaigns(request: Request):
+    """List all campaigns."""
+    campaigns = lib_campaign.list_campaigns()
+    return templates.TemplateResponse(
+        "list.html", {"request": request, "campaigns": campaigns}
+    )

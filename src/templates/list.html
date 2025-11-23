@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Campaign List</title>
+</head>
+<body>
+    <h1>Campaigns</h1>
+    <ul>
+        {% for campaign in campaigns %}
+        <li>
+            <strong>{{ campaign.name }}</strong><br>
+            Description: {{ campaign.description or 'N/A' }}<br>
+            Campaign Schedule: {{ campaign.campaign_schedule }}<br>
+            Cycle Schedule: {{ campaign.cycle_schedule }}<br>
+            Max Events: {{ campaign.max_events or 'N/A' }}<br>
+            ID: {{ campaign.id }}
+        </li>
+        {% endfor %}
+    </ul>
+</body>
+</html></content>
