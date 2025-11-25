@@ -1,24 +1,22 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Echo - Campaigns</title>
-</head>
-<body>
-    <h1>Campaigns</h1>
-    <a href="/create">Create New Campaign</a>
+{% extends "base.html" %}
+
+{% block title %}Echo - Campaigns{% endblock %}
+
+{% block header %}Campaigns{% endblock %}
+
+{% block content %}
     <ul>
         {% for campaign in campaigns %}
         <li>
             <strong>{{ campaign.name }}</strong> (ID: {{ campaign.id }})
-            <a href="/view?campaign_id={{ campaign.id }}">View</a>
-            <a href="/edit?campaign_id={{ campaign.id }}">Edit</a>
+            <a href="/campaigns/show?campaign_id={{ campaign.id }}">View</a>
+            <a href="/campaigns/update?campaign_id={{ campaign.id }}">Edit</a>
+            <a href="/campaigns/delete?campaign_id={{ campaign.id }}">Delete</a>
         </li>
         {% endfor %}
     </ul>
-    <nav>
-        <a href="/">Home</a>
-    </nav>
-</body>
-</html>
+{% endblock %}
+
+{% block nav %}
+    <a href="/campaigns/create">Create New Campaign</a>
+{% endblock %}

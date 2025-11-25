@@ -1,13 +1,11 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Echo - Create Campaign</title>
-</head>
-<body>
-    <h1>Create New Campaign</h1>
-    <form action="/campaigns/" method="post">
+{% extends "base.html" %}
+
+{% block title %}Echo - Create Campaign{% endblock %}
+
+{% block header %}Create New Campaign{% endblock %}
+
+{% block content %}
+    <form action="/campaigns/create" method="post">
         <label for="name">Name:</label>
         <input type="text" id="name" name="name" required><br>
 
@@ -15,19 +13,21 @@
         <textarea id="description" name="description"></textarea><br>
 
         <label for="campaign_schedule">Campaign Schedule:</label>
-        <input type="text" id="campaign_schedule" name="campaign_schedule" required><br>
+        <input type="text" id="campaign_schedule" name="campaign_schedule" value="cron(*/45 * * * ? *)" required>
+        <small>Every 45 minutes (cron format: minute hour day month day-of-week year)</small><br>
 
         <label for="cycle_schedule">Cycle Schedule:</label>
-        <input type="text" id="cycle_schedule" name="cycle_schedule" required><br>
+        <input type="text" id="cycle_schedule" name="cycle_schedule" value="cron(*/5 * * * ? *)" required>
+        <small>Every 5 minutes (cron format: minute hour day month day-of-week year)</small><br>
 
         <label for="max_events">Max Events:</label>
-        <input type="number" id="max_events" name="max_events" required><br>
+        <input type="number" id="max_events" name="max_events" value="4" required>
+        <small>Maximum number of events per cycle</small><br>
 
         <button type="submit">Create</button>
     </form>
-    <nav>
-        <a href="/list">Back to List</a>
-        <a href="/">Home</a>
-    </nav>
-</body>
-</html>
+{% endblock %}
+
+{% block nav %}
+    <a href="/campaigns/list">Back to List</a>
+{% endblock %}

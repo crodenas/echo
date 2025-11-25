@@ -1,12 +1,10 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Echo - View Campaign</title>
-</head>
-<body>
-    <h1>Campaign Details</h1>
+{% extends "base.html" %}
+
+{% block title %}Echo - Show Campaign{% endblock %}
+
+{% block header %}Campaign Details{% endblock %}
+
+{% block content %}
     {% if campaign %}
     <p><strong>ID:</strong> {{ campaign.id }}</p>
     <p><strong>Name:</strong> {{ campaign.name }}</p>
@@ -14,13 +12,15 @@
     <p><strong>Campaign Schedule:</strong> {{ campaign.campaign_schedule }}</p>
     <p><strong>Cycle Schedule:</strong> {{ campaign.cycle_schedule }}</p>
     <p><strong>Max Events:</strong> {{ campaign.max_events }}</p>
-    <a href="/edit?campaign_id={{ campaign.id }}">Edit</a>
     {% else %}
     <p>Campaign not found.</p>
     {% endif %}
-    <nav>
-        <a href="/list">Back to List</a>
-        <a href="/">Home</a>
-    </nav>
-</body>
-</html>
+{% endblock %}
+
+{% block nav %}
+    {% if campaign %}
+    <a href="/campaigns/update?campaign_id={{ campaign.id }}">Edit</a>
+    <a href="/campaigns/delete?campaign_id={{ campaign.id }}">Delete</a>
+    {% endif %}
+    <a href="/campaigns/list">Back to List</a>
+{% endblock %}

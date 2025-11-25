@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}Echo - Delete Campaign{% endblock %}
+
+{% block header %}Delete Campaign{% endblock %}
+
+{% block content %}
+    {% if campaign %}
+    <p>Are you sure you want to delete this campaign?</p>
+    <p><strong>ID:</strong> {{ campaign.id }}</p>
+    <p><strong>Name:</strong> {{ campaign.name }}</p>
+    <p><strong>Description:</strong> {{ campaign.description }}</p>
+    <form action="/campaigns/delete" method="post">
+        <input type="hidden" name="campaign_id" value="{{ campaign.id }}">
+        <button type="submit">Delete</button>
+    </form>
+    {% else %}
+    <p>Campaign not found.</p>
+    {% endif %}
+{% endblock %}
+
+{% block nav %}
+    {% if campaign %}
+    <a href="/campaigns/show?campaign_id={{ campaign.id }}">View</a>
+    {% endif %}
+    <a href="/campaigns/list">Back to List</a>
+{% endblock %}

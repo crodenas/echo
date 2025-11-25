@@ -1,10 +1,9 @@
 "module"
 
-from dataclasses import dataclass
+from pydantic import BaseModel
 
 
-@dataclass
-class CampaignCreate:
+class CampaignCreate(BaseModel):
     """Model for creating a new campaign (excludes id)."""
 
     name: str
@@ -14,8 +13,7 @@ class CampaignCreate:
     max_events: int
 
 
-@dataclass
-class CampaignUpdate:
+class CampaignUpdate(BaseModel):
     """Model for updating an existing campaign (excludes id)."""
 
     name: str
@@ -25,8 +23,7 @@ class CampaignUpdate:
     max_events: int
 
 
-@dataclass
-class Campaign:
+class Campaign(BaseModel):
     """Full campaign model including id."""
 
     name: str
@@ -37,9 +34,8 @@ class Campaign:
     id: int | None = None
 
 
-@dataclass
-class Employee:
-    "class"
+class Employee(BaseModel):
+    """Employee model."""
 
     first_name: str
     last_name: str
