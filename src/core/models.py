@@ -11,6 +11,7 @@ class CampaignCreate(BaseModel):
     cycle_schedule: str  # AWS crontab schedule
     description: str
     max_events: int
+    conn_string: str | None = None
 
 
 class CampaignUpdate(BaseModel):
@@ -21,6 +22,7 @@ class CampaignUpdate(BaseModel):
     cycle_schedule: str  # AWS crontab schedule
     description: str
     max_events: int
+    conn_string: str | None = None
 
 
 class Campaign(BaseModel):
@@ -32,6 +34,7 @@ class Campaign(BaseModel):
     description: str | None
     max_events: int | None
     id: int | None = None
+    conn_string: str | None = None  # Database connection string
 
 
 class Employee(BaseModel):

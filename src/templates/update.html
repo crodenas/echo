@@ -26,6 +26,10 @@
         <input type="number" id="max_events" name="max_events" value="{{ campaign.max_events }}" required>
         <small>Maximum number of events per cycle</small><br>
 
+        <label for="conn_string">Connection String:</label>
+        <input type="text" id="conn_string" name="conn_string" value="{{ campaign.conn_string }}" placeholder="sqlite:///my_campaign.db">
+        <small>Optional DB connection string specific to this campaign</small><br>
+
         <button type="submit">Update</button>
     </form>
     {% else %}

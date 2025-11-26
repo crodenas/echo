@@ -98,6 +98,7 @@ def to_domain(model: CampaignSchema) -> Campaign:
         campaign_schedule=model.campaign_schedule,
         cycle_schedule=model.cycle_schedule,
         max_events=model.max_events,
+        conn_string=model.conn_string,
     )
 
 
@@ -110,4 +111,5 @@ def to_schema(campaign: Campaign) -> CampaignSchema:
         campaign_schedule=campaign.campaign_schedule,
         cycle_schedule=campaign.cycle_schedule,
         max_events=campaign.max_events,
+        conn_string=campaign.conn_string,
     )

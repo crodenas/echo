@@ -17,6 +17,7 @@ class CampaignSchema(Base):
     campaign_schedule: Mapped[str] = mapped_column()
     cycle_schedule: Mapped[str] = mapped_column()
     max_events: Mapped[int | None] = mapped_column()
+    conn_string: Mapped[str | None] = mapped_column()
 
 
 def create_tables(engine) -> None:

@@ -59,6 +59,7 @@ async def create_campaign(campaign: CampaignCreate):
         cycle_schedule=campaign.cycle_schedule,
         description=campaign.description,
         max_events=campaign.max_events,
+        conn_string=campaign.conn_string,
         id=None,
     )
     return await lib_campaign.create_campaign(campaign_obj)
@@ -86,6 +87,7 @@ async def update_campaign_by_id(campaign_id: int, campaign: CampaignUpdate):
         cycle_schedule=campaign.cycle_schedule,
         description=campaign.description,
         max_events=campaign.max_events,
+        conn_string=campaign.conn_string,
         id=campaign_id,
     )
     updated = await lib_campaign.update_campaign(campaign_obj)

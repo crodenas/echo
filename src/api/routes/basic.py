@@ -32,6 +32,7 @@ async def create_campaign_post(
     campaign_schedule: str = Form(...),
     cycle_schedule: str = Form(...),
     max_events: int = Form(...),
+    conn_string: str | None = Form(None),
 ):
     """Create a new campaign from form data."""
     campaign = CampaignCreate(
@@ -40,6 +41,7 @@ async def create_campaign_post(
         campaign_schedule=campaign_schedule,
         cycle_schedule=cycle_schedule,
         max_events=max_events,
+        conn_string=conn_string,
     )
     campaign_obj = Campaign(**campaign.model_dump(), id=None)
     await lib_campaign.create_campaign(campaign_obj)
@@ -99,6 +101,7 @@ async def update_campaign_post(
     campaign_schedule: str = Form(...),
     cycle_schedule: str = Form(...),
     max_events: int = Form(...),
+    conn_string: str | None = Form(None),
 ):
     """Update a campaign from form data."""
     campaign = CampaignUpdate(
@@ -107,6 +110,7 @@ async def update_campaign_post(
         campaign_schedule=campaign_schedule,
         cycle_schedule=cycle_schedule,
         max_events=max_events,
+        conn_string=conn_string,
     )
     campaign_obj = Campaign(**campaign.model_dump(), id=campaign_id)
     await lib_campaign.update_campaign(campaign_obj)
