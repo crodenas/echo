@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 from aws_croniter import AwsCroniter
 
-from core import config
+from core import config, campaign as campaign_module
 from core.models import Campaign
 from libs.aws import scheduler
 from libs.aws.models.scheduler import Schedule
@@ -210,4 +210,8 @@ async def queue_2_handler(message: SQSMessage) -> None:
     campaign_id = json.loads(message.body).get("campaign_id")
     cycle_count = json.loads(message.body).get("cycle_count")
     print(f"Campaign ID: {campaign_id}, Cycle Count: {cycle_count}")
+
+    campaign = await campaign_module.get_campaign(campaign_id)
+    if campaign:
+        print(f"Retrieved campaign: {campaign}")
     # this is where we would trigger the campaign cycle execution logic
