@@ -9,7 +9,6 @@
         {% for campaign in campaigns %}
         <li>
             <strong>{{ campaign.name }}</strong> (ID: {{ campaign.id }})
-            {% if campaign.conn_string %}<br><small>Conn: {{ campaign.conn_string }}</small>{% endif %}
             <a href="/campaigns/show?campaign_id={{ campaign.id }}">View</a>
             <a href="/campaigns/update?campaign_id={{ campaign.id }}">Edit</a>
             <a href="/campaigns/delete?campaign_id={{ campaign.id }}">Delete</a>
