@@ -1,5 +1,7 @@
 "module"
 
+from typing import Optional
+
 from pydantic import BaseModel
 
 
@@ -11,7 +13,7 @@ class CampaignCreate(BaseModel):
     cycle_schedule: str  # AWS crontab schedule
     description: str
     max_events: int
-    conn_string: str | None = None
+    conn_string: Optional[str] = None
 
 
 class CampaignUpdate(BaseModel):
@@ -22,7 +24,7 @@ class CampaignUpdate(BaseModel):
     cycle_schedule: str  # AWS crontab schedule
     description: str
     max_events: int
-    conn_string: str | None = None
+    conn_string: Optional[str] = None
 
 
 class Campaign(BaseModel):
@@ -31,10 +33,10 @@ class Campaign(BaseModel):
     name: str
     campaign_schedule: str  # AWS crontab schedule
     cycle_schedule: str  # AWS crontab schedule
-    description: str | None
-    max_events: int | None
-    id: int | None = None
-    conn_string: str | None = None  # Database connection string
+    description: Optional[str]
+    max_events: Optional[int]
+    id: Optional[int] = None
+    conn_string: Optional[str] = None  # Database connection string
 
 
 class Employee(BaseModel):
@@ -46,4 +48,4 @@ class Employee(BaseModel):
     system_id: str
     internet_email_address: str
     job_title: str
-    supervisor_system_id: str | None
+    supervisor_system_id: Optional[str] = None
