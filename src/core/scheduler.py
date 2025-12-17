@@ -7,12 +7,13 @@ import json
 from datetime import datetime, timezone
 
 from aws_croniter import AwsCroniter
+from aws_v2 import scheduler
+from aws_v2.models.scheduler import Schedule
+from aws_v2.sqs import SQSMessage
 
-from core import config, campaign as campaign_module
+from core import campaign as campaign_module
+from core import config
 from core.models import Campaign
-from libs.aws import scheduler
-from libs.aws.models.scheduler import Schedule
-from libs.aws.sqs import SQSMessage
 
 QUEUE_1_URL: str = config.QUEUE_1_URL
 QUEUE_1_ARN: str = config.QUEUE_1_ARN
