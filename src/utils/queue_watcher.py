@@ -5,7 +5,7 @@ import inspect
 import time
 from typing import Any, Callable
 
-from libs.aws import sqs
+from aws_v2 import sqs
 
 
 class SQSConsumer:
