@@ -4,8 +4,8 @@ from typing import List
 
 from fastapi import APIRouter, HTTPException
 
-from core import campaign as lib_campaign
 from core.models import Campaign, CampaignCreate, CampaignUpdate
+from services import campaign_service
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
 
@@ -18,7 +18,7 @@ async def get_campaigns():
     Returns:
         List of all campaigns
     """
-    return lib_campaign.list_campaigns()
+    return campaign_service.list_campaigns()
 
 
 @router.get("/{campaign_id}", response_model=Campaign)
@@ -35,7 +35,7 @@ async def get_campaign_by_id_route(campaign_id: int):
     Raises:
         HTTPException: If campaign is not found
     """
-    campaign = await lib_campaign.get_campaign(campaign_id)
+    campaign = await campaign_service.get_campaign(campaign_id)
     if not campaign:
         raise HTTPException(status_code=404, detail=f"Campaign {campaign_id} not found")
     return campaign
@@ -62,7 +62,7 @@ async def create_campaign(campaign: CampaignCreate):
         conn_string=campaign.conn_string,
         id=None,
     )
-    return await lib_campaign.create_campaign(campaign_obj)
+    return await campaign_service.create_campaign(campaign_obj)
 
 
 @router.put("/{campaign_id}", response_model=Campaign)
@@ -90,7 +90,7 @@ async def update_campaign_by_id(campaign_id: int, campaign: CampaignUpdate):
         conn_string=campaign.conn_string,
         id=campaign_id,
     )
-    updated = await lib_campaign.update_campaign(campaign_obj)
+    updated = await campaign_service.update_campaign(campaign_obj)
     if not updated:
         raise HTTPException(status_code=404, detail=f"Campaign {campaign_id} not found")
     return updated
@@ -107,7 +107,7 @@ async def delete_campaign_by_id(campaign_id: int):
     Raises:
         HTTPException: If campaign is not found
     """
-    campaign = await lib_campaign.get_campaign(campaign_id)
+    campaign = await campaign_service.get_campaign(campaign_id)
     if not campaign:
         raise HTTPException(status_code=404, detail=f"Campaign {campaign_id} not found")
-    await lib_campaign.delete_campaign(campaign_id)
+    await campaign_service.delete_campaign(campaign_id)

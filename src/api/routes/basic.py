@@ -1,28 +1,28 @@
 """Basic routes for the Echo application."""
 
-from fastapi import APIRouter, Request, Form
+from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from core import campaign as lib_campaign
 from core.models import Campaign, CampaignCreate, CampaignUpdate
+from services import campaign_service
 
 router = APIRouter(prefix="/campaigns")
-templates = Jinja2Templates(directory="templates")
+templates = Jinja2Templates(directory="src/templates")
 
 
 @router.get("/", response_class=HTMLResponse, include_in_schema=False)
 async def read_root(request: Request):
     """Root endpoint returning a simple greeting."""
     return templates.TemplateResponse(
-        "index.html", {"request": request, "message": "Hello World!"}
+        request, "index.html", {"message": "Hello World!"}
     )
 
 
 @router.get("/create", response_class=HTMLResponse, include_in_schema=False)
 async def create_campaign(request: Request):
     """Create a new campaign."""
-    return templates.TemplateResponse("create.html", {"request": request})
+    return templates.TemplateResponse(request, "create.html")
 
 
 @router.post("/create", include_in_schema=False)
@@ -44,53 +44,45 @@ async def create_campaign_post(
         conn_string=conn_string,
     )
     campaign_obj = Campaign(**campaign.model_dump(), id=None)
-    await lib_campaign.create_campaign(campaign_obj)
+    await campaign_service.create_campaign(campaign_obj)
     return RedirectResponse(url="/campaigns/list", status_code=303)
 
 
 @router.get("/delete", response_class=HTMLResponse, include_in_schema=False)
 async def delete_campaign(request: Request, campaign_id: int):
     """Delete a campaign."""
-    campaign = await lib_campaign.get_campaign(campaign_id)
-    return templates.TemplateResponse(
-        "delete.html", {"request": request, "campaign": campaign}
-    )
+    campaign = await campaign_service.get_campaign(campaign_id)
+    return templates.TemplateResponse(request, "delete.html", {"campaign": campaign})
 
 
 @router.post("/delete", include_in_schema=False)
 async def delete_campaign_post(campaign_id: int = Form(...)):
     """Delete a campaign from form data."""
-    campaign = await lib_campaign.get_campaign(campaign_id)
+    campaign = await campaign_service.get_campaign(campaign_id)
     if campaign:
-        await lib_campaign.delete_campaign(campaign_id)
+        await campaign_service.delete_campaign(campaign_id)
     return RedirectResponse(url="/campaigns/list", status_code=303)
 
 
 @router.get("/list", response_class=HTMLResponse, include_in_schema=False)
 async def list_campaigns(request: Request):
     """List all campaigns."""
-    campaigns = lib_campaign.list_campaigns()
-    return templates.TemplateResponse(
-        "list.html", {"request": request, "campaigns": campaigns}
-    )
+    campaigns = campaign_service.list_campaigns()
+    return templates.TemplateResponse(request, "list.html", {"campaigns": campaigns})
 
 
 @router.get("/show", response_class=HTMLResponse, include_in_schema=False)
 async def show_campaign(request: Request, campaign_id: int):
     """Show a campaign."""
-    campaign = await lib_campaign.get_campaign(campaign_id)
-    return templates.TemplateResponse(
-        "show.html", {"request": request, "campaign": campaign}
-    )
+    campaign = await campaign_service.get_campaign(campaign_id)
+    return templates.TemplateResponse(request, "show.html", {"campaign": campaign})
 
 
 @router.get("/update", response_class=HTMLResponse, include_in_schema=False)
 async def update_campaign(request: Request, campaign_id: int):
     """Update a campaign."""
-    campaign = await lib_campaign.get_campaign(campaign_id)
-    return templates.TemplateResponse(
-        "update.html", {"request": request, "campaign": campaign}
-    )
+    campaign = await campaign_service.get_campaign(campaign_id)
+    return templates.TemplateResponse(request, "update.html", {"campaign": campaign})
 
 
 @router.post("/update", include_in_schema=False)
@@ -113,7 +105,7 @@ async def update_campaign_post(
         conn_string=conn_string,
     )
     campaign_obj = Campaign(**campaign.model_dump(), id=campaign_id)
-    await lib_campaign.update_campaign(campaign_obj)
+    await campaign_service.update_campaign(campaign_obj)
     return RedirectResponse(
         url=f"/campaigns/show?campaign_id={campaign_id}", status_code=303
     )

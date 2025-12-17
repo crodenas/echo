@@ -11,7 +11,6 @@ from aws_v2 import scheduler
 from aws_v2.models.scheduler import Schedule
 from aws_v2.sqs import SQSMessage
 
-from core import campaign as campaign_module
 from core import config
 from core.models import Campaign
 
@@ -193,10 +192,10 @@ async def queue_1_handler(message: SQSMessage) -> None:
     print(f"Processing message from Queue 1: {message.body}")
     campaign_id = json.loads(message.body).get("campaign_id")
     if campaign_id:
-        # Local import to avoid circular dependency with campaign module
-        from . import campaign as campaign_module
+        # Local import to avoid circular dependency
+        from services import campaign_service
 
-        campaign = await campaign_module.get_campaign(campaign_id)
+        campaign = await campaign_service.get_campaign(campaign_id)
         if campaign:
             print(f"Retrieved campaign: {campaign}")
             await create_cycle_schedules(campaign)
@@ -212,7 +211,10 @@ async def queue_2_handler(message: SQSMessage) -> None:
     cycle_count = json.loads(message.body).get("cycle_count")
     print(f"Campaign ID: {campaign_id}, Cycle Count: {cycle_count}")
 
-    campaign = await campaign_module.get_campaign(campaign_id)
+    # Local import to avoid circular dependency
+    from services import campaign_service
+
+    campaign = await campaign_service.get_campaign(campaign_id)
     if campaign:
         print(f"Retrieved campaign: {campaign}")
     # this is where we would trigger the campaign cycle execution logic

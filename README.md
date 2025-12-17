@@ -68,16 +68,34 @@ ECHO is an enterprise software system designed to help teams manage and verify r
 
 ```text
 echo/
-├── src/                    # Main application code
-│   ├── main.py            # FastAPI application entry point
-│   ├── campaign.py        # Campaign management logic
-│   ├── employees.py       # Employee data handling
-│   ├── models.py          # Data models
-│   ├── scheduler.py       # Scheduling utilities
-│   ├── api/               # API routes and endpoints
-│   ├── data/              # Data storage and sample files
-│   ├── db/                # Database schemas and engines
-│   └── services/          # Business logic services
+├── src/                        # Application source code
+│   ├── main.py                # FastAPI application entry point
+│   ├── api/                   # HTTP routes and endpoints
+│   │   └── routes/           # API route handlers
+│   ├── services/              # Business logic layer (NEW)
+│   │   └── campaign_service.py
+│   ├── core/                  # Domain models and utilities
+│   │   ├── models.py         # Pydantic domain models
+│   │   ├── scheduler.py      # AWS EventBridge integration
+│   │   └── config.py         # Configuration
+│   ├── db/                    # Database layer
+│   │   ├── schemas.py        # SQLAlchemy models
+│   │   └── db_engine.py      # Database configuration
+│   ├── templates/             # Jinja2 HTML templates
+│   └── utils/                 # Utility modules
+├── tests/                      # Test suite (NEW)
+├── examples/                   # Sample data and configs (NEW)
+├── scripts/                    # Utility scripts (NEW)
+├── docs/                       # Documentation
+│   ├── project_structure.md   # Architecture guide (NEW)
+│   └── MIGRATION.md          # Migration guide (NEW)
+├── QUICK_REFERENCE.md         # Quick reference guide (NEW)
+├── pyproject.toml             # Project configuration
+└── README.md                  # This file
+```
+
+**📚 See [QUICK_REFERENCE.md](QUICK_REFERENCE.md) for quick start guide**
+**📖 See [docs/project_structure.md](docs/project_structure.md) for detailed architecture**
 ├── docs/                  # Documentation
 ├── utils/                 # Utility scripts and examples
 └── examples/              # Usage examples

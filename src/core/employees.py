@@ -5,7 +5,7 @@ from typing import List, Optional
 
 from core.models import Employee
 
-DB_FILE = "data/Employees.json"
+DB_FILE = "examples/data/Employees.json"
 EMPLOYEES: List[Employee] = []
 
 with open(DB_FILE, "r", encoding="utf-8") as fh:
