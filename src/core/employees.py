@@ -1,26 +1,34 @@
 "module"
 
-from typing import Optional
+import json
+from typing import List, Optional
 
 from core.models import Employee
-from db import db_json
 
-employee_db = db_json.get_db("data/Employees.json")
+DB_FILE = "data/Employees.json"
+EMPLOYEES: List[Employee] = []
+
+with open(DB_FILE, "r", encoding="utf-8") as fh:
+    employee_db = json.load(fh)
+    EMPLOYEES = [
+        Employee(
+            first_name=emp["FirstName"],
+            last_name=emp["LastName"],
+            global_id=emp["GlobalId"],
+            system_id=emp["SystemId"],
+            internet_email_address=emp["InternetEmailAddress"],
+            job_title=emp["JobTitle"],
+            supervisor_system_id=emp.get("SupervisorSystemId"),
+        )
+        for emp in employee_db
+    ]
 
 
 def get_by_system_id(system_id: str) -> Optional[Employee]:
     """Get a Worker by their SystemId."""
-    for emp in employee_db:
-        if emp["SystemId"] == system_id:
-            return Employee(
-                first_name=emp["FirstName"],
-                last_name=emp["LastName"],
-                global_id=emp["GlobalId"],
-                system_id=emp["SystemId"],
-                internet_email_address=emp["InternetEmailAddress"],
-                job_title=emp["JobTitle"],
-                supervisor_system_id=emp["SupervisorSystemId"],
-            )
+    for emp in EMPLOYEES:
+        if emp.system_id == system_id:
+            return emp
     return None
 
 
