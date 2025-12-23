@@ -4,15 +4,17 @@ Scheduler utilities for creating one-time schedules.
 
 import asyncio
 import json
+import logging
 from datetime import datetime, timezone
 
 from aws_croniter import AwsCroniter
 from aws_v2 import scheduler
 from aws_v2.models.scheduler import Schedule
-from aws_v2.sqs import SQSMessage
 
 from core import config
 from core.models import Campaign
+
+logger = logging.getLogger(__name__)
 
 QUEUE_1_URL: str = config.QUEUE_1_URL
 QUEUE_1_ARN: str = config.QUEUE_1_ARN
@@ -22,7 +24,7 @@ EXECUTION_ROLE_ARN: str = config.EXECUTION_ROLE_ARN
 
 
 async def create_schedule_group(campaign: Campaign) -> None:
-    "function"
+    """Create an AWS EventBridge schedule group for a campaign."""
     group_name = f"campaign_{campaign.id}_group"
     tags = [{"Key": "CampaignID", "Value": str(campaign.id)}]
 
@@ -31,7 +33,7 @@ async def create_schedule_group(campaign: Campaign) -> None:
 
 
 async def delete_schedule_group(campaign: Campaign) -> None:
-    "function"
+    """Delete an AWS EventBridge schedule group for a campaign."""
     group_name = f"campaign_{campaign.id}_group"
 
     # Delete the schedule group
@@ -39,7 +41,7 @@ async def delete_schedule_group(campaign: Campaign) -> None:
 
 
 async def list_schedules(campaign: Campaign) -> list[Schedule]:
-    "function"
+    """List all schedules in a campaign's schedule group."""
     group_name = f"campaign_{campaign.id}_group"
 
     # List schedules in the group
@@ -125,7 +127,7 @@ def _build_cycle_schedule_params(
 
 
 async def create_campaign_schedule(campaign: Campaign) -> None:
-    "function"
+    """Create the main schedule for a campaign."""
     params = _build_campaign_schedule_params(campaign)
 
     # Create the schedule
@@ -133,7 +135,7 @@ async def create_campaign_schedule(campaign: Campaign) -> None:
 
 
 async def update_campaign_schedule(campaign: Campaign) -> None:
-    "function"
+    """Update an existing campaign schedule."""
     params = _build_campaign_schedule_params(campaign)
 
     # Update the schedule
@@ -141,7 +143,7 @@ async def update_campaign_schedule(campaign: Campaign) -> None:
 
 
 async def get_campaign_schedule(campaign: Campaign) -> Schedule | None:
-    "function"
+    """Retrieve the schedule for a campaign."""
     schedule_name = f"campaign_{campaign.id}_schedule"
     group_name = f"campaign_{campaign.id}_group"
 
@@ -152,7 +154,7 @@ async def get_campaign_schedule(campaign: Campaign) -> Schedule | None:
 
 
 def strip_cron_wrapper(cron_expression: str) -> str:
-    "function"
+    """Strip the 'cron()' wrapper from an AWS cron expression if present."""
     expr = cron_expression.strip()
     if expr.startswith("cron(") and expr.endswith(")"):
         return expr[5:-1]
@@ -160,7 +162,7 @@ def strip_cron_wrapper(cron_expression: str) -> str:
 
 
 async def create_cycle_schedules(campaign: Campaign) -> None:
-    "function"
+    """Create one-time schedules for each cycle event in a campaign."""
     # We want to use the cycle schedule expression to create campaign.max_events one-time
     # schedules that will trigger the campaign cycle execution.
     # Strip 'cron()' wrapper if present
@@ -174,47 +176,18 @@ async def create_cycle_schedules(campaign: Campaign) -> None:
         if next_execution is not None:
             schedule_expression = next_execution.strftime("at(%Y-%m-%dT%H:%M:%S)")
         else:
-            print(
-                f"Skipping schedule creation for campaign {campaign.id} due to None next_execution."
+            logger.warning(
+                "Skipping schedule creation for campaign %s due to None next_execution",
+                campaign.id,
             )
             continue
-        print(
-            f"Creating cycle schedule {count + 1}/{campaign.max_events} for campaign "
-            f"{campaign.id} at {schedule_expression}"
+        logger.info(
+            "Creating cycle schedule %d/%d for campaign %s at %s",
+            count + 1,
+            campaign.max_events,
+            campaign.id,
+            schedule_expression,
         )
         params = _build_cycle_schedule_params(campaign, schedule_expression, count + 1)
         # Create the cycle event schedule
         await asyncio.to_thread(scheduler.create_schedule, **params)
-
-
-async def queue_1_handler(message: SQSMessage) -> None:
-    "function"
-    print(f"Processing message from Queue 1: {message.body}")
-    campaign_id = json.loads(message.body).get("campaign_id")
-    if campaign_id:
-        # Local import to avoid circular dependency
-        from services import campaign_service
-
-        campaign = await campaign_service.get_campaign(campaign_id)
-        if campaign:
-            print(f"Retrieved campaign: {campaign}")
-            await create_cycle_schedules(campaign)
-        else:
-            print(f"Campaign with ID {campaign_id} not found.")
-
-
-async def queue_2_handler(message: SQSMessage) -> None:
-    "function"
-    # {"campaign_id": 1, "cycle_count": 1, "timestamp": "2025-11-19T01:10:49.438461+00:00"}
-    print(f"Processing message from Queue 2: {message.body}")
-    campaign_id = json.loads(message.body).get("campaign_id")
-    cycle_count = json.loads(message.body).get("cycle_count")
-    print(f"Campaign ID: {campaign_id}, Cycle Count: {cycle_count}")
-
-    # Local import to avoid circular dependency
-    from services import campaign_service
-
-    campaign = await campaign_service.get_campaign(campaign_id)
-    if campaign:
-        print(f"Retrieved campaign: {campaign}")
-    # this is where we would trigger the campaign cycle execution logic

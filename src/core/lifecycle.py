@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from core import config
-from core.scheduler import queue_1_handler, queue_2_handler
+from core.queue_handlers import queue_1_handler, queue_2_handler
 from utils.queue_watcher import create_sqs_consumer
 
 # ---------------------------------------------------------------------------
