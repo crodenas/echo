@@ -3,14 +3,14 @@ Queue message handlers for SQS message processing.
 """
 
 import json
-import logging
 
 from aws_v2.models.sqs import SQSMessage
 
+from core.logger import get_logger
 from core.scheduler import create_cycle_schedules
 from services import campaign_service
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 async def queue_1_handler(message: SQSMessage) -> None:

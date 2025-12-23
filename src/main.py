@@ -8,6 +8,10 @@ from fastapi import FastAPI, APIRouter
 from api.routes.basic import router as basic_router
 from api.routes.campaigns import router as campaigns_router
 from core.lifecycle import lifespan
+from core.logger import setup_logging
+
+# Initialize logging
+setup_logging()
 
 app = FastAPI(
     title="Echo API",
