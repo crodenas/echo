@@ -8,6 +8,7 @@
 | `src/services/` | Business logic | Campaign operations, orchestration |
 | `src/core/` | Domain layer | Pydantic models, config, utilities |
 | `src/db/` | Data layer | SQLAlchemy schemas, engine config |
+| `src/utils/` | Utilities | SQS consumer, queue watcher |
 | `src/templates/` | UI | Jinja2 HTML templates |
 | `tests/` | Testing | Pytest test files |
 | `examples/` | Samples | Example data, configurations |
@@ -136,6 +137,9 @@ services/*.py (Business logic)
 | `src/services/campaign_service.py` | Campaign CRUD + AWS coordination |
 | `src/core/models.py` | Pydantic domain models |
 | `src/core/scheduler.py` | AWS EventBridge client |
+| `src/core/lifecycle.py` | App startup/shutdown, SQS consumers |
+| `src/core/employees.py` | Employee data access |
+| `src/utils/queue_watcher.py` | SQS consumer implementation |
 | `src/db/schemas.py` | SQLAlchemy ORM models |
 | `tests/conftest.py` | Pytest fixtures |
 | `pyproject.toml` | Dependencies & config |
@@ -161,19 +165,6 @@ services/*.py (Business logic)
 - Schema definitions
 - Query execution
 - Database config
-
-## Migration Notes
-
-### Deprecated
-- ❌ `core.campaign` module → Use `services.campaign_service`
-- ❌ `templates/` at root → Use `src/templates/`
-- ❌ `src/data/` → Use `examples/data/`
-
-### New Patterns
-- ✅ Import services from `services` package
-- ✅ Templates at `src/templates/`
-- ✅ Tests in `tests/` directory
-- ✅ Examples in `examples/` directory
 
 ## Documentation
 

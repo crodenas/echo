@@ -8,7 +8,7 @@ from core.models import Campaign, CampaignCreate, CampaignUpdate
 from services import campaign_service
 
 router = APIRouter(prefix="/campaigns")
-templates = Jinja2Templates(directory="src/templates")
+templates = Jinja2Templates(directory="templates")
 
 
 @router.get("/", response_class=HTMLResponse, include_in_schema=False)
