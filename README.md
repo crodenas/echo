@@ -72,7 +72,7 @@ echo/
 │   ├── main.py                # FastAPI application entry point
 │   ├── api/                   # HTTP routes and endpoints
 │   │   └── routes/           # API route handlers
-│   ├── services/              # Business logic layer (NEW)
+│   ├── services/              # Business logic layer
 │   │   └── campaign_service.py
 │   ├── core/                  # Domain models and utilities
 │   │   ├── models.py         # Pydantic domain models
@@ -83,23 +83,18 @@ echo/
 │   │   └── db_engine.py      # Database configuration
 │   ├── templates/             # Jinja2 HTML templates
 │   └── utils/                 # Utility modules
-├── tests/                      # Test suite (NEW)
-├── examples/                   # Sample data and configs (NEW)
-├── scripts/                    # Utility scripts (NEW)
+├── tests/                      # Test suite
+├── examples/                   # Sample data and configs
+├── scripts/                    # Utility scripts
 ├── docs/                       # Documentation
-│   ├── project_structure.md   # Architecture guide (NEW)
-│   └── MIGRATION.md          # Migration guide (NEW)
-├── QUICK_REFERENCE.md         # Quick reference guide (NEW)
+│   └── project_structure.md   # Architecture guide
+├── QUICK_REFERENCE.md         # Quick reference guide
 ├── pyproject.toml             # Project configuration
 └── README.md                  # This file
 ```
 
-**📚 See [QUICK_REFERENCE.md](QUICK_REFERENCE.md) for quick start guide**
-**📖 See [docs/project_structure.md](docs/project_structure.md) for detailed architecture**
-├── docs/                  # Documentation
-├── utils/                 # Utility scripts and examples
-└── examples/              # Usage examples
-```
+**See [QUICK_REFERENCE.md](QUICK_REFERENCE.md) for quick start guide**
+**See [docs/project_structure.md](docs/project_structure.md) for detailed architecture**
 
 ## Running the Application
 
@@ -156,15 +151,8 @@ This mode runs the background schedulers directly and is useful for:
 You can also run individual components or examples:
 
 ```bash
-# Run scheduler examples
-uv run python utils/examples/background_scheduler.py
-uv run python utils/examples/blocking_scheduler.py
-
-# Run SQLAlchemy examples
-uv run python utils/examples/sqlalchemy_example.py
-
-# Generate sample data
-uv run python utils/generate_sample_objects.py
+# Run utility scripts
+uv run python scripts/verify_structure.py
 ```
 
 ## Development Workflow
@@ -295,7 +283,7 @@ Detailed documentation is available in the `docs/` directory:
 ### Getting Help
 
 - Check the [documentation](docs/) for detailed information
-- Review the [examples](utils/examples/) for usage patterns
+- Review the [examples](examples/) for sample data
 - Open an issue for bugs or feature requests
 
 ## License

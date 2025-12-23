@@ -169,6 +169,4 @@ services/*.py (Business logic)
 ## Documentation
 
 - **Architecture**: [docs/project_structure.md](docs/project_structure.md)
-- **Migration**: [docs/MIGRATION.md](docs/MIGRATION.md)
-- **Summary**: [RESTRUCTURE_SUMMARY.md](RESTRUCTURE_SUMMARY.md)
 - **API Docs**: http://localhost:8000/docs (when running)

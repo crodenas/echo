@@ -29,7 +29,6 @@ echo/
 │   │   │   └── campaigns.py    # REST API routes
 │   │   └── __init__.py
 │   ├── core/                   # Core layer - Domain logic
-│   │   ├── campaign.py         # (deprecated - moved to services)
 │   │   ├── config.py           # Configuration management
 │   │   ├── employees.py        # Employee data access
 │   │   ├── lifecycle.py        # Application lifecycle
@@ -207,7 +206,6 @@ uv run pytest
 
 ## Notes
 
-- **Old Structure:** `core/campaign.py` contains deprecated campaign functions - use `services/campaign_service.py` instead
-- **Data Location:** Example data moved from `src/data/` to `examples/data/`
+- **Data Location:** Example data in `examples/data/`
 - **Templates:** Located in `src/templates/` (referenced from `src/api/routes/basic.py`)
 - **AWS Integration:** All AWS EventBridge operations handled by `core/scheduler.py`
