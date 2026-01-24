@@ -54,7 +54,55 @@ ECHO is an enterprise software system designed to help teams manage and verify r
    pip install -e .
    ```
 
-3. **Verify installation**
+3. **Configure environment variables**
+
+   ECHO requires environment configuration for AWS resources and application settings.
+
+   ```bash
+   # Copy the environment template
+   cp .env.example .env
+   ```
+
+   Edit `.env` and replace the placeholders with your actual AWS values:
+
+   ```bash
+   # AWS Configuration
+   AWS_REGION=us-east-2
+   AWS_QUEUE_1_URL=https://sqs.us-east-2.amazonaws.com/YOUR_ACCOUNT_ID/MyFirstQueue
+   AWS_QUEUE_1_ARN=arn:aws:sqs:us-east-2:YOUR_ACCOUNT_ID:MyFirstQueue
+   AWS_QUEUE_2_URL=https://sqs.us-east-2.amazonaws.com/YOUR_ACCOUNT_ID/MySecondQueue
+   AWS_QUEUE_2_ARN=arn:aws:sqs:us-east-2:YOUR_ACCOUNT_ID:MySecondQueue
+   AWS_EXECUTION_ROLE_ARN=arn:aws:iam::YOUR_ACCOUNT_ID:role/service-role/YOUR_ROLE_NAME
+
+   # Application Configuration
+   LOG_LEVEL=INFO  # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
+   DATABASE_URL=sqlite:///./src/data/echo.db
+   ```
+
+   **Important:** Never commit the `.env` file to version control. It's already in `.gitignore`.
+
+4. **Set up AWS credentials**
+
+   ECHO requires AWS credentials to access EventBridge Scheduler and SQS services.
+
+   **Option A: AWS credentials file (recommended for development)**
+   ```bash
+   # Configure AWS CLI with your credentials
+   aws configure
+   ```
+
+   **Option B: Environment variables**
+   ```bash
+   export AWS_ACCESS_KEY_ID=your_access_key
+   export AWS_SECRET_ACCESS_KEY=your_secret_key
+   export AWS_DEFAULT_REGION=us-east-2
+   ```
+
+   **Option C: IAM role (recommended for production)**
+   - Use EC2 instance roles or ECS task roles
+   - No credentials file needed
+
+5. **Verify installation**
 
    ```bash
    # With uv
@@ -62,7 +110,64 @@ ECHO is an enterprise software system designed to help teams manage and verify r
 
    # With pip/venv
    python --version
+
+   # Verify settings load correctly
+   uv run python -c "from core.settings import get_settings; print('✓ Configuration loaded successfully')"
+
+   # Verify AWS connectivity (optional)
+   aws sts get-caller-identity
    ```
+
+## Configuration Reference
+
+### Environment Variables
+
+ECHO uses environment variables for all configuration. See `.env.example` for a complete template.
+
+#### AWS Settings
+
+| Variable | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `AWS_REGION` | No | AWS region for all services | `us-east-2` (default) |
+| `AWS_QUEUE_1_URL` | **Yes** | SQS Queue 1 URL (campaign triggers) | `https://sqs.us-east-2.amazonaws.com/123456789/Queue1` |
+| `AWS_QUEUE_1_ARN` | **Yes** | SQS Queue 1 ARN | `arn:aws:sqs:us-east-2:123456789:Queue1` |
+| `AWS_QUEUE_2_URL` | **Yes** | SQS Queue 2 URL (cycle execution) | `https://sqs.us-east-2.amazonaws.com/123456789/Queue2` |
+| `AWS_QUEUE_2_ARN` | **Yes** | SQS Queue 2 ARN | `arn:aws:sqs:us-east-2:123456789:Queue2` |
+| `AWS_EXECUTION_ROLE_ARN` | **Yes** | IAM role for EventBridge Scheduler | `arn:aws:iam::123456789:role/SchedulerRole` |
+| `AWS_SCHEDULER_OPERATION_TIMEOUT` | No | Timeout for scheduler operations (seconds) | `30` (default) |
+| `AWS_SQS_OPERATION_TIMEOUT` | No | Timeout for SQS operations (seconds) | `10` (default) |
+| `AWS_MAX_RETRY_ATTEMPTS` | No | Maximum retry attempts for AWS operations | `3` (default) |
+| `AWS_RETRY_MIN_WAIT` | No | Minimum retry wait time (seconds) | `1` (default) |
+| `AWS_RETRY_MAX_WAIT` | No | Maximum retry wait time (seconds) | `10` (default) |
+
+#### Database Settings
+
+| Variable | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `DATABASE_URL` | No | Database connection URL | `sqlite:///./src/data/echo.db` (default) |
+
+#### Application Settings
+
+| Variable | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `LOG_LEVEL` | No | Application log level | `INFO` (default) |
+
+### AWS Resource Setup
+
+ECHO requires the following AWS resources:
+
+1. **Two SQS Queues:**
+   - Queue 1: Receives campaign start triggers
+   - Queue 2: Receives cycle execution triggers
+
+2. **IAM Execution Role** for EventBridge Scheduler with permissions to:
+   - Send messages to both SQS queues (`sqs:SendMessage`)
+
+3. **AWS Credentials** with permissions for:
+   - EventBridge Scheduler (`scheduler:*`)
+   - SQS queue operations (`sqs:ReceiveMessage`, `sqs:DeleteMessage`, `sqs:GetQueueAttributes`)
+
+Refer to your CloudFormation stack outputs for the correct ARNs and URLs.
 
 ### Project Structure
 

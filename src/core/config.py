@@ -1,13 +1,24 @@
-"module"
+"""Configuration module - DEPRECATED.
 
-# QUEUE ARNs are output when creating the SQS queues via CloudFormation
-QUEUE_1_URL: str = "https://sqs.us-east-2.amazonaws.com/891242332196/MyFirstQueue"
-QUEUE_2_URL: str = "https://sqs.us-east-2.amazonaws.com/891242332196/MySecondQueue"
-QUEUE_1_ARN: str = "arn:aws:sqs:us-east-2:891242332196:MyFirstQueue"
-QUEUE_2_ARN: str = "arn:aws:sqs:us-east-2:891242332196:MySecondQueue"
+This module is maintained for backward compatibility.
+New code should import from core.settings instead.
 
-# Role ARN for EventBridge Scheduler to invoke targets
-# TODO: Need to add to CloudFormation stack
-EXECUTION_ROLE_ARN: str = (
-    "arn:aws:iam::891242332196:role/service-role/Amazon_EventBridge_Scheduler_SQS_32652038ad"
-)
+All configuration is now loaded from environment variables via the settings module.
+See .env.example for required environment variables.
+"""
+
+from core.settings import get_settings
+
+# Load settings from environment
+_settings = get_settings()
+
+# Export constants for backward compatibility
+# These now come from environment variables instead of being hardcoded
+QUEUE_1_URL: str = _settings.aws.queue_1_url
+QUEUE_2_URL: str = _settings.aws.queue_2_url
+QUEUE_1_ARN: str = _settings.aws.queue_1_arn
+QUEUE_2_ARN: str = _settings.aws.queue_2_arn
+EXECUTION_ROLE_ARN: str = _settings.aws.execution_role_arn
+
+# Export settings instance for direct access
+settings = _settings

@@ -3,15 +3,22 @@
 Initializes FastAPI application, sets up routing, and manages application lifespan.
 """
 
+import logging
+
 from fastapi import FastAPI, APIRouter
 
 from api.routes.basic import router as basic_router
 from api.routes.campaigns import router as campaigns_router
 from core.lifecycle import lifespan
 from core.logger import setup_logging
+from core.settings import get_settings
 
-# Initialize logging
-setup_logging()
+# Load settings
+settings = get_settings()
+
+# Initialize logging with level from settings
+log_level = getattr(logging, settings.log_level, logging.INFO)
+setup_logging(level=log_level)
 
 app = FastAPI(
     title="Echo API",

@@ -6,10 +6,10 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from main import app  # noqa: E402
-
-# Add src to Python path
+# Add src to Python path BEFORE imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+
+from main import app  # noqa: E402
 
 
 @pytest.fixture

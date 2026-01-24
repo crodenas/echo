@@ -83,6 +83,7 @@ cython_debug/
 # SQLite database files
 *.sqlite
 *.db
+src/data/*.db
 
 # VS Code settings
 .vscode/
