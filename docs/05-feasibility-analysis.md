@@ -10,9 +10,9 @@ The ECHO system as designed is achievable with the proposed technology stack and
 
 **Confidence Level:** High (8/10)
 
-**Timeline Estimate:** 12-14 weeks for MVP with core features
+**Timeline Estimate:** 12-15 weeks for MVP with core features and speedbump mitigations
 
-**Risk Level:** Moderate - dependent on resolving open design questions
+**Risk Level:** Moderate - dependent on resolving open design questions and addressing identified speedbumps
 
 ---
 
@@ -77,22 +77,21 @@ The ECHO system as designed is achievable with the proposed technology stack and
 - Scale to 100+ campaigns
 
 **Assessment:**
-- ✅ **APScheduler**: Well-tested library, good for development
-- ⚠️ **APScheduler limitations**: Single-instance only, in-memory (lost on restart)
 - ✅ **AWS EventBridge**: Highly scalable, persistent, managed service
+- ✅ **Schedule Groups**: Separate dev/prod schedules, same codebase
 - ⚠️ **EventBridge complexity**: AWS-specific, requires careful testing
 - ⚠️ **Cron format**: AWS cron differs from standard cron (common mistake)
 
-**Effort:** 2-3 weeks (both implementations)
+**Effort:** 1-2 weeks (single implementation)
 
 **Recommendations:**
-- Abstract scheduler behind interface (protocol)
-- Use APScheduler for local development
-- Use EventBridge for production
-- Create comprehensive test suite for both
+- Use EventBridge for all environments (dev and prod)
+- Separate schedules using schedule groups
+- Create comprehensive test suite
 - Document AWS cron format requirements clearly
+- Use AWS SDK for local testing
 
-**Verdict:** Achievable with abstraction layer
+**Verdict:** Achievable with single implementation
 
 ---
 
@@ -158,7 +157,7 @@ The ECHO system as designed is achievable with the proposed technology stack and
 
 ---
 
-### 6. Cycle Execution ✅ **Low-Moderate Risk**
+### 6. Wave Execution ✅ **Low-Moderate Risk**
 
 **Requirements:**
 - Create cycle on schedule trigger
@@ -219,7 +218,7 @@ The ECHO system as designed is achievable with the proposed technology stack and
 - Transaction locks (mitigate with row-level locking)
 
 **Recommendations:**
-- Index foreign keys (campaign_id, cycle_id)
+- Index foreign keys (campaign_id, wave_id)
 - Index frequently queried fields (status, object_id)
 - Partition large tables by date (cycles, notifications)
 - Use connection pooling (SQLAlchemy built-in)
@@ -248,25 +247,22 @@ The ECHO system as designed is achievable with the proposed technology stack and
 
 **Verdict:** FastAPI is appropriate choice
 
-### Scheduler Scalability ✅ **With EventBridge**
-
-**APScheduler limitations:**
-- Single instance only
-- In-memory (lost on crash)
-- Max ~10,000 scheduled jobs
+### Scheduler Scalability ✅ **EventBridge for All Environments**
 
 **EventBridge capabilities:**
 - Millions of schedules
 - Highly available (AWS managed)
 - Persistent across restarts
 - Pay-per-use pricing
+- Schedule groups for dev/prod separation
 
-**Recommendations:**
-- Use EventBridge for production (required for scale)
-- Keep APScheduler for local development
-- Abstract scheduler interface for testing
+**Implementation:**
+- Use EventBridge for all environments (dev and prod)
+- Separate schedules using schedule groups
+- Single codebase, consistent behavior
+- AWS SDK allows local testing
 
-**Verdict:** EventBridge solves scalability concerns
+**Verdict:** EventBridge solves scalability concerns with single implementation
 
 ---
 
@@ -306,19 +302,193 @@ The ECHO system as designed is achievable with the proposed technology stack and
 - **Mitigation**: Validation during campaign creation, runtime checks
 - **Status**: Manageable
 
+**6. Manager Hierarchy Resolution**
+- **Risk**: `owner.manager` syntax requires manager lookup - how to resolve?
+- **Impact**: Escalations to managers may fail if lookup mechanism unclear
+- **Mitigation**: Options include:
+  - LDAP/AD integration for org chart
+  - Additional data source field (e.g., `owner_manager`)
+  - Manual manager mapping in campaign config
+- **Status**: Design decision needed for manager escalations
+
+**7. Contact Field Name Variability**
+- **Risk**: Different data sources use different field names (owner vs service_owner vs primary_contact)
+- **Impact**: Template authors need to know exact field names from their source
+- **Mitigation**: Clear documentation, schema discovery endpoint, template validation
+- **Status**: Manageable with good docs
+
+**8. Template Rendering Performance**
+- **Risk**: Large record lists (100+ items) could slow template rendering
+- **Impact**: Slow notification generation, potential timeouts
+- **Mitigation**: Template best practices (summary+link for large lists), rendering timeouts, pagination
+- **Status**: Campaign owner design choice (addressed in docs)
+
 ### Low Risk Items 🟢
 
-**6. Database Schema**
+**9. Database Schema**
 - **Risk**: Schema changes during development
 - **Impact**: Migration complexity
 - **Mitigation**: Alembic migrations, careful design upfront
 - **Status**: Standard practice
 
-**7. API Development**
+**10. API Development**
 - **Risk**: Standard web development
 - **Impact**: Bugs, performance issues
 - **Mitigation**: Testing, code review, monitoring
 - **Status**: Low complexity
+
+---
+
+## Additional Implementation Speedbumps
+
+### 1. Secret Management for Data Sources ⚠️
+**Challenge:** Connection strings contain credentials - how to store securely?
+
+**Options:**
+- AWS Parameter Store (encrypted parameters)
+- AWS Secrets Manager (more expensive, rotation support)
+- Environment variables (simple but less secure)
+
+**Recommendation:** AWS Parameter Store with encryption
+- Campaign creation: User provides connection string once
+- ECHO stores parameter reference (not actual string)
+- Runtime: Fetch from Parameter Store when needed
+
+**Complexity:** Moderate - adds 1-2 days to implementation
+
+### 2. Hash-Based Verification Cache Storage ⚠️
+**Challenge:** If using hash-based verification (no timestamps), need to cache previous record state.
+
+**Impact:**
+- Storage: Need to store full record JSON for comparison
+- Performance: Hash calculation on every sync
+- Database size: Grows with number of records
+
+**Mitigation:**
+- Only use when timestamps unavailable
+- Document storage implications
+- Periodic cache cleanup for old cycles
+
+**Complexity:** Moderate - adds storage requirements
+
+### 3. Time Zone Handling for Schedules ⚠️
+**Challenge:** AWS cron expressions use UTC - but users think in local time.
+
+**Impact:**
+- Schedule misconfiguration ("I said 9am but it runs at 2pm!")
+- Daylight saving time shifts
+
+**Mitigation:**
+- Accept schedules in UTC only (clear documentation)
+- Or: Accept timezone + local time, convert to UTC
+- Show "next run time" in UI for verification
+
+**Complexity:** Low-moderate - timezone conversion logic
+
+### 4. EventBridge Schedule Limits and Costs ⚠️
+**Challenge:** EventBridge has quotas and per-invocation costs.
+
+**Limits:**
+- 1 million schedules per region (more than enough)
+- Rate of schedule changes (throttling)
+
+**Costs:**
+- $1.00 per million invocations
+- Expected cost: Very low (100 campaigns × 12 cycles/year × 3 escalations = $0.004/year)
+
+**Mitigation:**
+- Monitor schedule count
+- Document cost model
+- Use schedule groups for organization
+
+**Complexity:** Low - mainly monitoring
+
+### 5. Cycle Cancellation and Cleanup 🔴
+**Challenge:** When campaign disabled or cycle fails, need to clean up pending escalations.
+
+**Impact:**
+- Orphaned schedules in EventBridge
+- Wasted invocations
+- Confusion about cycle status
+
+**Solution:**
+- On cycle cancel: Delete all future escalation schedules
+- On campaign disable: Leave in-progress cycles, skip future ones
+- Periodic cleanup job for orphaned schedules
+
+**Complexity:** Moderate - requires careful schedule management
+
+### 6. Notification Rate Limiting ⚠️
+**Challenge:** External services have rate limits (SES: 14 emails/sec default).
+
+**Impact:**
+- Large cycles with many contacts could hit limits
+- Failed deliveries need retry
+
+**Mitigation:**
+- Batch notifications with delays
+- Monitor send rate
+- Implement backoff on 429 responses
+- Request limit increases from AWS
+
+**Complexity:** Moderate - needs queue management
+
+### 7. Data Source Connection Pooling ⚠️
+**Challenge:** Opening new DB connections for each data source query is slow.
+
+**Impact:**
+- Performance degradation
+- Resource exhaustion
+
+**Mitigation:**
+- Connection pooling per data source
+- Close connections after cycle completes
+- Connection timeout handling
+
+**Complexity:** Low - SQLAlchemy handles this
+
+### 8. Template Validation ⚠️
+**Challenge:** Invalid Jinja2 templates crash at runtime.
+
+**Impact:**
+- Notifications fail
+- Users frustrated
+
+**Mitigation:**
+- Pre-validate templates on campaign save
+- Render with sample data before saving
+- Clear error messages
+
+**Complexity:** Low - add validation layer
+
+### 9. Contact Email Format Validation ⚠️
+**Challenge:** Data sources might return invalid emails.
+
+**Impact:**
+- Notification failures
+- Bounces
+
+**Mitigation:**
+- Validate email format on ingestion
+- Skip invalid contacts, log warning
+- Report to campaign owner
+
+**Complexity:** Low - use email validation library
+
+### 10. Large Dataset Pagination ⚠️
+**Challenge:** Data source queries might return 10,000+ records.
+
+**Impact:**
+- Memory exhaustion
+- Slow queries
+- Timeouts
+
+**Mitigation:**
+- Paginate data source queries (LIMIT/OFFSET)
+- Process records in batches
+- Stream results where possible
+
+**Complexity:** Moderate - affects data source connectors
 
 ---
 
@@ -331,13 +501,12 @@ The ECHO system as designed is achievable with the proposed technology stack and
 - SQL data source connector
 - Email notifications
 - Timestamp-based verification
-- APScheduler for local/dev
+- AWS EventBridge Scheduler (all environments)
 - Basic web UI for campaign management
 
 **Exclusions from MVP:**
 - REST API / HTTP data sources (add later)
 - Teams / Slack notifications (add later)
-- EventBridge scheduler (add later)
 - Advanced verification methods (add later)
 - Multi-tenancy / user management (add later)
 
@@ -345,12 +514,12 @@ The ECHO system as designed is achievable with the proposed technology stack and
 
 | Phase | Duration | Features |
 |-------|----------|----------|
-| **Phase 1: Foundation** | 2-3 weeks | Project setup, database, models, API structure |
-| **Phase 2: Campaign Mgmt** | 2 weeks | Campaign CRUD, SQL connector, validation |
-| **Phase 3: Cycle Execution** | 3 weeks | Cycle creation, record processing, verification logic |
-| **Phase 4: Notifications** | 2 weeks | Email delivery, templates, retry logic |
+| **Phase 1: Foundation** | 2-3 weeks | Project setup, database, models, API structure, secret management |
+| **Phase 2: Campaign Mgmt** | 2-3 weeks | Campaign CRUD, SQL connector, validation, template validation |
+| **Phase 3: Cycle Execution** | 3-4 weeks | Cycle creation, record processing, verification logic, cleanup |
+| **Phase 4: Notifications** | 2-3 weeks | Email delivery, templates, retry logic, rate limiting |
 | **Phase 5: Polish** | 2 weeks | Testing, UI, documentation, bug fixes |
-| **Total MVP** | **11-12 weeks** | Functional system with core features |
+| **Total MVP** | **12-15 weeks** | Functional system with core features and speedbump mitigations |
 
 ### Post-MVP Enhancements
 
@@ -410,9 +579,28 @@ The ECHO system is **feasible and achievable** with:
 
 1. ✅ **Resolve open questions** before implementation starts
 2. ✅ **Narrow MVP scope** to core features only
-3. ✅ **Build quality from start** (tests, linting, types)
-4. ✅ **Iterate based on feedback** from pilot teams
-5. ✅ **Monitor and improve** post-launch
+3. ✅ **Address speedbumps proactively** (secret management, rate limiting, validation)
+4. ✅ **Build quality from start** (tests, linting, types)
+5. ✅ **Iterate based on feedback** from pilot teams
+6. ✅ **Monitor and improve** post-launch
+
+### Identified Speedbumps Summary
+
+**Critical (address in MVP):**
+- 🔴 Cycle cancellation and cleanup
+- ⚠️ Secret management for data sources
+- ⚠️ Template validation
+- ⚠️ Email format validation
+
+**Important (address early):**
+- ⚠️ Notification rate limiting
+- ⚠️ Large dataset pagination
+- ⚠️ Time zone handling
+
+**Can defer to post-MVP:**
+- Manager hierarchy resolution (manual workaround for MVP)
+- Hash-based verification cache (use timestamps for MVP)
+- EventBridge cost monitoring (very low cost)
 
 ### Next Steps
 

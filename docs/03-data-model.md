@@ -11,7 +11,9 @@ Every data source must provide these minimum fields:
 | Field | Type | Description | Example |
 |-------|------|-------------|---------|
 | `object_id` | String | Unique identifier for the record | `"service-123"`, `"db-prod-456"` |
-| `contact_1` | String | Primary contact system ID | `"alice@example.com"` |
+| (at least one contact field) | String | Contact identifier named by source system | `"owner": "alice@example.com"` |
+
+**Note:** Contact field names are defined by the source system based on organizational terminology (e.g., `owner`, `system_custodian`, `primary_it_contact`, `service_owner`, etc.). Each contact field contains a single contact identifier.
 
 ### Recommended Fields
 
@@ -21,19 +23,15 @@ These fields significantly improve ECHO's effectiveness:
 |-------|------|-------------|---------|
 | `last_updated` | Timestamp | When record was last modified | `"2024-01-15T10:30:00Z"` |
 | `last_verified` | Timestamp | When record was last confirmed | `"2024-01-10T14:00:00Z"` |
-| `contact_2`, `contact_3`, ... | String | Additional contacts | `"bob@example.com"` |
+| Additional contact fields | String | Additional role-based contacts | `"backup_owner": "bob@example.com"` |
 | `name` | String | Display name for the resource | `"Payment Processing API"` |
 | `description` | String | Brief description | `"Handles credit card transactions"` |
-| `url` | String | Link to resource details | `"https://portal.example.com/services/123"` |
-| `owner_team` | String | Owning team name | `"payments"` |
 
-### Optional Metadata
+### Additional Fields
 
-Any additional fields can be included and used in notification templates:
-- `environment` (production, staging, dev)
-- `criticality` (high, medium, low)
-- `technology` (Java, Python, Node.js)
-- `cost_center`, `department`, etc.
+Any additional fields from the data source are passed through to notification templates. ECHO does not require or define specific optional fields - include whatever is useful for your templates.
+
+**Examples:** `environment`, `criticality`, `technology`, `cost_center`, `department`, etc.
 
 ### Data Source Examples
 
@@ -44,12 +42,11 @@ SELECT
   service_id AS object_id,
   service_name AS name,
   description,
-  primary_contact AS contact_1,
-  secondary_contact AS contact_2,
+  service_owner AS owner,
+  system_custodian,
+  backup_contact,
   last_updated_date AS last_updated,
   last_verified_date AS last_verified,
-  portal_url AS url,
-  owner_team,
   environment,
   criticality
 FROM services
@@ -64,16 +61,12 @@ WHERE active = true;
       "object_id": "service-123",
       "name": "Payment Processing API",
       "description": "Handles credit card transactions",
-      "contact_1": "alice@example.com",
-      "contact_2": "bob@example.com",
+      "owner": "alice@example.com",
+      "system_custodian": "bob@example.com",
       "last_updated": "2024-01-15T10:30:00Z",
       "last_verified": "2024-01-10T14:00:00Z",
-      "url": "https://portal.example.com/services/123",
-      "metadata": {
-        "owner_team": "payments",
-        "environment": "production",
-        "criticality": "high"
-      }
+      "environment": "production",
+      "criticality": "high"
     }
   ]
 }
@@ -94,12 +87,8 @@ CREATE TABLE campaigns (
   data_source_config JSONB NOT NULL,      -- Connection details
 
   -- Scheduling
-  campaign_schedule VARCHAR(100) NOT NULL,  -- AWS cron expression
-  cycle_schedule VARCHAR(100) NOT NULL,     -- AWS cron expression
-  escalation_count INTEGER NOT NULL,
-
-  -- Escalation rules
-  escalation_rules JSONB NOT NULL,
+  campaign_schedule VARCHAR(100) NOT NULL,  -- AWS cron expression (when to start cycles)
+  escalation_rules JSONB NOT NULL,          -- Array of {level, delay_days, recipients} (escalations within cycle)
 
   -- Notification configuration
   notification_templates JSONB NOT NULL,
@@ -128,13 +117,11 @@ CREATE TABLE campaigns (
     "connection_string": "postgresql://...",
     "query": "SELECT * FROM echo_services_view"
   },
-  "campaign_schedule": "cron(0 0 1 */3 ? *)",
-  "cycle_schedule": "cron(0 12 * * ? *)",
-  "escalation_count": 3,
-  "escalation_rules": [
-    {"level": 1, "recipients": ["record_contacts"], "delay_days": 0},
-    {"level": 2, "recipients": ["record_contacts"], "delay_days": 7},
-    {"level": 3, "recipients": ["record_contacts", "team_lead@example.com"], "delay_days": 14}
+  "campaign_schedule": "cron(0 0 1 */3 ? *)",  // Start new cycle every 3 months
+  "escalation_rules": [                         // Escalations within each cycle
+    {"level": 0, "recipients": ["owner"], "delay_days": 0},
+    {"level": 1, "recipients": ["owner", "system_custodian"], "delay_days": 7},
+    {"level": 2, "recipients": ["owner", "system_custodian", "owner.manager"], "delay_days": 14}
   ],
   "notification_templates": {
     "email": "default_email_template",
@@ -155,7 +142,10 @@ CREATE TABLE cycles (
   -- Timing
   start_date TIMESTAMP NOT NULL,
   end_date TIMESTAMP,
-  current_escalation_level INTEGER DEFAULT 1,
+  current_escalation_level INTEGER DEFAULT 0,
+
+  -- Tier 0 verification cache (hash-based, optional)
+  record_hashes JSONB,  -- {"object_id": "hash", ...} - Only for Tier 0, NULL for Tier 1
 
   -- Status
   status VARCHAR(50) NOT NULL,  -- 'in_progress', 'completed', 'cancelled'
@@ -174,57 +164,26 @@ CREATE INDEX idx_cycles_campaign ON cycles(campaign_id);
 CREATE INDEX idx_cycles_status ON cycles(status);
 ```
 
-### Record Table
+**Note:** `record_hashes` is only populated for Tier 0 (hash-based) verification when data source lacks timestamps. For Tier 1 (timestamp-based) verification, this field remains NULL.
 
-```sql
-CREATE TABLE records (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  cycle_id UUID NOT NULL REFERENCES cycles(id) ON DELETE CASCADE,
-  campaign_id UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
-
-  -- Source data
-  object_id VARCHAR(255) NOT NULL,
-  source_data JSONB NOT NULL,  -- Full record from data source
-
-  -- Contacts
-  contacts VARCHAR[] NOT NULL,  -- Array of system IDs
-
-  -- Verification tracking
-  verification_status VARCHAR(50) NOT NULL,  -- 'verified', 'unverified', 'stale'
-  last_updated TIMESTAMP,
-  last_verified TIMESTAMP,
-  verified_in_cycle BOOLEAN DEFAULT false,
-
-  -- Metadata
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_records_cycle ON records(cycle_id);
-CREATE INDEX idx_records_campaign ON records(campaign_id);
-CREATE INDEX idx_records_object ON records(object_id);
-CREATE INDEX idx_records_status ON records(verification_status);
-```
-
-**Example Row:**
+**Example Cycle Row:**
 ```json
 {
-  "id": "650e8400-e29b-41d4-a716-446655440001",
-  "cycle_id": "750e8400-e29b-41d4-a716-446655440002",
+  "id": "750e8400-e29b-41d4-a716-446655440002",
   "campaign_id": "550e8400-e29b-41d4-a716-446655440000",
-  "object_id": "service-123",
-  "source_data": {
-    "name": "Payment Processing API",
-    "description": "Handles credit card transactions",
-    "url": "https://portal.example.com/services/123",
-    "owner_team": "payments",
-    "environment": "production"
+  "start_date": "2024-01-01T00:00:00Z",
+  "end_date": "2024-01-14T23:59:59Z",
+  "current_escalation_level": 1,
+  "record_hashes": {
+    "service-123": "a3f5e9d...",
+    "service-456": "b8c2f1a...",
+    "service-789": "c9d4e2b..."
   },
-  "contacts": ["alice@example.com", "bob@example.com"],
-  "verification_status": "unverified",
-  "last_updated": "2024-01-15T10:30:00Z",
-  "last_verified": "2024-01-10T14:00:00Z",
-  "verified_in_cycle": false
+  "status": "in_progress",
+  "total_records": 3,
+  "verified_records": 0,
+  "unverified_records": 3,
+  "created_at": "2024-01-01T00:00:00Z"
 }
 ```
 
@@ -248,8 +207,8 @@ CREATE TABLE notifications (
   body TEXT,
   template_used VARCHAR(255),
 
-  -- Records included
-  record_ids UUID[] NOT NULL,
+  -- Records included (from data source)
+  object_ids VARCHAR(255)[] NOT NULL,  -- Array of object_id values from data source
   record_count INTEGER NOT NULL,
 
   -- Delivery tracking
@@ -273,11 +232,14 @@ CREATE INDEX idx_notifications_status ON notifications(status);
 ```
 Campaign (1) ──────< (N) Cycle
    │                    │
-   │                    │
-   └─────< (N) Record <─┘
-              │
-              │
-           (N) Notification (grouped by recipient)
+   │                    └──< (N) Notification (grouped by recipient)
+   │
+   └──> Data Source (external, fresh lookup at each escalation)
+
+Notes:
+- No records table - records are fetched fresh from data source at each escalation
+- Cycle.record_hashes (JSONB) stores hashes for Tier 0 verification only
+- Notifications reference object_ids but don't store full record data
 ```
 
 ## Change Detection Strategies
@@ -299,13 +261,15 @@ def is_verified(record, cycle_start):
 Calculate hash of critical fields:
 
 ```python
-def calculate_hash(record):
-    """Calculate hash of critical fields."""
+def calculate_hash(record, contact_fields):
+    """Calculate hash of critical fields including all contact fields."""
     fields = [
         record.name,
         record.description,
-        ','.join(sorted(record.contacts))
     ]
+    # Add all contact field values in sorted order
+    for field_name in sorted(contact_fields):
+        fields.append(f"{field_name}:{record.get(field_name, '')}")
     return hashlib.sha256('|'.join(fields).encode()).hexdigest()
 ```
 
@@ -324,15 +288,45 @@ POST /api/verify
 
 ### 4. Contact Change Detection
 
-If contacts changed, consider it verified (someone updated it):
+If any contact field changed, consider it verified (someone updated it):
 
 ```python
-def contacts_changed(old_record, new_record):
-    """Check if contacts were modified."""
-    return set(old_record.contacts) != set(new_record.contacts)
+def contacts_changed(old_record, new_record, contact_fields):
+    """Check if any contact fields were modified."""
+    for field_name in contact_fields:
+        old_value = old_record.get(field_name)
+        new_value = new_record.get(field_name)
+        if old_value != new_value:
+            return True
+    return False
 ```
 
 ## Notification Templates
+
+### Template Structure
+
+Each notification channel (email, Teams, Slack) references a Jinja2 template by ID:
+
+```json
+{
+  "notification_templates": {
+    "email": "service_verification_email",
+    "teams": "service_verification_teams",
+    "slack": "service_verification_slack"
+  }
+}
+```
+
+**URL Handling:**
+URLs are embedded directly in the template content using Jinja2 syntax. This gives template authors full control over URL formatting:
+
+```html
+<!-- Email template example -->
+<a href="https://portal.example.com/services/{{ record.object_id }}">Verify</a>
+
+<!-- Or with channel tracking -->
+<a href="https://portal.example.com/services/{{ record.object_id }}?channel=email&cycle={{ cycle.id }}">Verify</a>
+```
 
 ### Template Variables
 
@@ -357,7 +351,6 @@ Available in all templates:
     {
       "object_id": "service-123",
       "name": "Payment Processing API",
-      "url": "https://portal.example.com/services/123",
       "last_verified": "2024-01-10",
       "metadata": { ... }
     }
@@ -366,8 +359,11 @@ Available in all templates:
 }
 ```
 
-### Email Template Example
+### Email Template Examples
 
+**Template design is flexible** - campaign owners choose how to display records based on their use case.
+
+**Example 1: Inline List (good for small lists)**
 ```html
 <!DOCTYPE html>
 <html>
@@ -393,7 +389,7 @@ Available in all templates:
       <tr>
         <td>{{ record.name }}</td>
         <td>{{ record.last_verified or 'Never' }}</td>
-        <td><a href="{{ record.url }}">Verify</a></td>
+        <td><a href="https://portal.example.com/services/{{ record.object_id }}">Verify</a></td>
       </tr>
       {% endfor %}
     </tbody>
@@ -405,6 +401,33 @@ Available in all templates:
 </body>
 </html>
 ```
+
+**Example 2: Summary + Link (good for large lists)**
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <title>{{ campaign.name }} - Verification Required</title>
+</head>
+<body>
+  <h1>{{ campaign.name }}</h1>
+  <p>Hi {{ recipient.name }},</p>
+
+  <p>You have <strong>{{ record_count }}</strong> item(s) requiring verification.</p>
+
+  <p><a href="https://portal.example.com/verify?contact={{ recipient.email }}&cycle={{ cycle.id }}"
+     style="display: inline-block; padding: 10px 20px; background: #007bff; color: white; text-decoration: none;">
+    View and Verify All Items
+  </a></p>
+
+  {% if escalation_level > 1 %}
+  <p><strong>Reminder:</strong> This is escalation level {{ escalation_level }}.</p>
+  {% endif %}
+</body>
+</html>
+```
+
+**Note:** The summary + link approach works well when record counts can be large. Campaign owners can point to their source system's portal or ECHO's simple verification page.
 
 ## Storage Considerations
 
@@ -421,7 +444,7 @@ Partition large tables by date for performance:
 
 ```sql
 -- Partition cycles by created_at (monthly)
-CREATE TABLE cycles_2024_01 PARTITION OF cycles
+CREATE TABLE waves_2024_01 PARTITION OF cycles
   FOR VALUES FROM ('2024-01-01') TO ('2024-02-01');
 
 -- Partition notifications by created_at (weekly)

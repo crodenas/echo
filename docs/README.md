@@ -28,9 +28,11 @@ Read these documents in order for complete understanding:
 
 | Document | Purpose | Read Time |
 |----------|---------|-----------|
+| [decisions.md](decisions.md) | **✅ All design decisions (FINALIZED 2026-02-14)** | 25 min |
 | [05-feasibility-analysis.md](05-feasibility-analysis.md) | Feasibility assessment, risk analysis, effort estimates | 10 min |
-| [06-open-questions.md](06-open-questions.md) | Unresolved design decisions requiring input | 15 min |
-| [implementation-plan.md](implementation-plan.md) | Tech stack, project structure, development roadmap | 15 min |
+| [06-open-questions.md](06-open-questions.md) | ~~Unresolved~~ **RESOLVED** design decisions | 15 min |
+| [implementation-plan.md](implementation-plan.md) | Tech stack, project structure, development roadmap | 20 min |
+| [verification-portal-kit.md](verification-portal-kit.md) | **Separate optional product** for data sources without UIs | 15 min |
 
 ### 3. Archive
 
@@ -44,11 +46,13 @@ Read these documents in order for complete understanding:
 
 ### Design Principles
 
-1. **Read-Only Integration** - Never modify external data sources
-2. **Data Ownership** - Teams retain full control of their systems
-3. **Minimal Impact** - Lowest possible integration burden
-4. **Extensibility** - Pluggable components
-5. **Simplicity** - Easy to configure and operate
+1. **API-First** - All functionality via REST API, UI is optional
+2. **Orchestration, Not Data Management** - ECHO sends notifications and tracks verifications, doesn't edit source data
+3. **Separation of Concerns** - Verification UIs are separate optional products
+4. **Data Ownership** - Teams retain full control of their systems
+5. **Minimal Impact** - Lowest possible integration burden
+6. **Extensibility** - Pluggable components (data sources, channels, templates)
+7. **Simplicity** - Easy to configure and operate
 
 ### Key Constraints
 
@@ -61,27 +65,40 @@ Read these documents in order for complete understanding:
 
 - **Backend:** FastAPI + Python 3.13+
 - **Database:** PostgreSQL + SQLAlchemy
-- **Scheduling:** APScheduler (dev) / AWS EventBridge (prod)
+- **Scheduling:** AWS EventBridge Scheduler (all environments)
 - **Notifications:** AWS SES, Microsoft Teams, Slack
 - **Code Quality:** ruff, mypy, pytest
 
 ---
 
-## Open Questions Status
+## ✅ Design Decisions Status
 
-Critical questions requiring decisions before implementation:
+**All critical design decisions finalized on 2026-02-14!**
 
-- [ ] **Verification detection method** - How to determine if a record is verified?
-- [ ] **Contact-less records** - How to handle records without contacts?
-- [ ] **Cycle overlap** - How to prevent/handle overlapping cycles?
-- [ ] **Notification channels** - Single vs. multiple channel strategy?
-- [ ] **Scheduler choice** - APScheduler vs. EventBridge for production?
+- [x] **Verification detection method** - Tiered: Hash-based + Timestamp, auto-detect
+- [x] **Contact-less records** - Notify campaign owner at cycle start
+- [x] **Cycle overlap** - Validation at creation + Skip at runtime
+- [x] **Notification channels** - Email-only for MVP, extensible architecture
+- [x] **Scheduler choice** - EventBridge for all environments
+- [x] **Database** - PostgreSQL with async SQLAlchemy
+- [x] **All deferred questions** - Simple MVP approaches chosen
 
-See [06-open-questions.md](06-open-questions.md) for details and options.
+See [decisions.md](decisions.md) for complete details of all 12 decisions.
 
 ---
 
 ## Document Changelog
+
+### 2026-02-14 - Design Decisions Finalized & Verification Strategy
+- **All 12 design decisions made and documented**
+- Decision #10: Azure AD OAuth2 with App Roles
+- Decision #12: Fresh contact lookup at each escalation
+- Verification strategy: ECHO provides API and simple page
+- Verification Portal Kit defined as separate optional product
+- Created [verification-portal-kit.md](verification-portal-kit.md)
+- Platform Campaign (dogfooding) documented
+- Updated [implementation-plan.md](implementation-plan.md) with verification architecture
+- Ready for implementation Phase 1
 
 ### 2026-02-13 - Documentation Reorganization
 - Restructured into numbered, sequential documents
@@ -122,13 +139,15 @@ When making changes:
 
 ---
 
-## Next Steps
+## ✅ Next Steps
 
-1. **Review all design documents** to understand the full system
-2. **Resolve critical open questions** (marked with priority in 06-open-questions.md)
-3. **Validate feasibility** using the analysis in 05-feasibility-analysis.md
-4. **Finalize MVP scope** based on effort estimates
-5. **Begin implementation** following the plan in implementation-plan.md
+1. ~~**Review all design documents**~~ ✅ Complete
+2. ~~**Resolve critical open questions**~~ ✅ Complete (all 11 decisions made)
+3. ~~**Validate feasibility**~~ ✅ Complete (system is achievable)
+4. ~~**Finalize MVP scope**~~ ✅ Complete (clear feature set defined)
+5. **BEGIN IMPLEMENTATION** → Follow [implementation-plan.md](implementation-plan.md)
+
+**Ready to start Phase 1: Foundation (2-3 weeks)**
 
 ---
 

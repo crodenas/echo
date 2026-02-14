@@ -33,7 +33,10 @@ This document tracks unresolved design questions and decisions that need to be m
 
 **Recommendation:** Start with **Timestamp-based (A)** for MVP, add **Hybrid (D)** in later iterations.
 
-**Decision:** _[To be decided]_
+**Decision:** ✅ **DECIDED - See [decisions.md](decisions.md#decision-1-verification-detection-method)**
+- Tiered approach: Tier 0 (hash-based) + Tier 1 (timestamp-based)
+- Auto-detect best tier from data source
+- Date: 2026-02-14
 
 ---
 
@@ -70,7 +73,9 @@ This document tracks unresolved design questions and decisions that need to be m
 
 **Recommendation:** **Combination Approach (D)** - log orphans, notify owner in summary, support optional fallback.
 
-**Decision:** _[To be decided]_
+**Decision:** ✅ **DECIDED - See [decisions.md](decisions.md#decision-2-contact-less-records-handling)**
+- Notify campaign owner at cycle start
+- Date: 2026-02-14
 
 ---
 
@@ -109,7 +114,9 @@ This document tracks unresolved design questions and decisions that need to be m
 
 **Recommendation:** **Validation + Skip (D)** - prevent at creation, skip with alert at runtime.
 
-**Decision:** _[To be decided]_
+**Decision:** ✅ **DECIDED - See [decisions.md](decisions.md#decision-3-cycle-overlap-management)**
+- Two-layer protection: Validation + Skip
+- Date: 2026-02-14
 
 ---
 
@@ -145,7 +152,9 @@ This document tracks unresolved design questions and decisions that need to be m
 
 **Recommendation:** Start with **Campaign-Level Choice (D)** for MVP, add **User Preference (C)** later.
 
-**Decision:** _[To be decided]_
+**Decision:** ✅ **DECIDED - See [decisions.md](decisions.md#decision-4-multi-channel-notification-strategy)**
+- Campaign-level, email-only for MVP, extensible architecture
+- Date: 2026-02-14
 
 ---
 
@@ -181,7 +190,9 @@ This document tracks unresolved design questions and decisions that need to be m
 
 **Recommendation:** **Configurable Per Escalation (D)** with suggested templates for common patterns.
 
-**Decision:** _[To be decided]_
+**Decision:** ✅ **DECIDED - See [decisions.md](decisions.md#decision-5-notification-frequency-within-cycle)**
+- Configurable per escalation (simple approach)
+- Date: 2026-02-14
 
 ---
 
@@ -206,7 +217,9 @@ This document tracks unresolved design questions and decisions that need to be m
 
 **Recommendation:** Use **both** - APScheduler for development/local, EventBridge for production. Abstract behind scheduler interface.
 
-**Decision:** _[To be decided]_
+**Decision:** ✅ **DECIDED - See [decisions.md](decisions.md#decision-6-scheduler-technology-choice)**
+- EventBridge for all environments with schedule groups (no APScheduler)
+- Date: 2026-02-14
 
 ---
 
@@ -236,7 +249,9 @@ This document tracks unresolved design questions and decisions that need to be m
 
 **Recommendation:** **PostgreSQL** - good fit for relational data model, JSONB handles flexible metadata, proven technology.
 
-**Decision:** _[To be decided]_
+**Decision:** ✅ **DECIDED - See [decisions.md](decisions.md#decision-7-database-choice)**
+- PostgreSQL with connection string configuration
+- Date: 2026-02-14
 
 ---
 
@@ -266,7 +281,9 @@ This document tracks unresolved design questions and decisions that need to be m
 
 **Recommendation:** **Hybrid Approach (C)** - ship good defaults, allow customization.
 
-**Decision:** _[To be decided]_
+**Decision:** ✅ **DECIDED - See [decisions.md](decisions.md#decision-8-template-system)**
+- Jinja2 templates in files for MVP
+- Date: 2026-02-14
 
 ---
 
@@ -298,7 +315,9 @@ This document tracks unresolved design questions and decisions that need to be m
 
 **Recommendation:** **Unified Flexible Model (B)** - one campaign type, use cases emerge from configuration.
 
-**Decision:** _[To be decided]_
+**Decision:** ✅ **DECIDED - See [decisions.md](decisions.md#decision-9-campaign-modes-svt-avt-cvt)**
+- Unified flexible model (single campaign type)
+- Date: 2026-02-14
 
 ---
 
@@ -328,7 +347,9 @@ This document tracks unresolved design questions and decisions that need to be m
 
 **Recommendation:** Start with **API Keys (A)** for MVP, add **SSO (C)** when multi-tenancy is needed.
 
-**Decision:** _[To be decided]_
+**Decision:** ✅ **DECIDED - See [decisions.md](decisions.md#decision-10-user-management)**
+- No user management for MVP (owner_email field only)
+- Date: 2026-02-14
 
 ---
 
@@ -350,7 +371,9 @@ This document tracks unresolved design questions and decisions that need to be m
 
 Immutable audit table, never delete, archive to S3 for long-term retention.
 
-**Decision:** _[To be decided]_
+**Decision:** ✅ **DECIDED - See [decisions.md](decisions.md#decision-11-audit-and-compliance)**
+- Standard Python logging for MVP
+- Date: 2026-02-14
 
 ---
 
@@ -368,19 +391,21 @@ For each open question:
 ### Priority for MVP
 
 **Must Decide Before Implementation:**
-- [ ] Verification detection method (#1)
-- [ ] Contact-less records handling (#2)
-- [ ] Cycle overlap management (#3)
-- [ ] Notification channel strategy (#4)
-- [ ] Scheduler choice (#6)
-- [ ] Database choice (#7)
+- [x] Verification detection method (#1) ✅ **DECIDED**
+- [x] Contact-less records handling (#2) ✅ **DECIDED**
+- [x] Cycle overlap management (#3) ✅ **DECIDED**
+- [x] Notification channel strategy (#4) ✅ **DECIDED**
+- [x] Scheduler choice (#6) ✅ **DECIDED**
+- [x] Database choice (#7) ✅ **DECIDED**
 
-**Can Defer:**
-- [ ] Business hours awareness (#5)
-- [ ] Campaign modes (#9)
-- [ ] User management approach (#10)
-- [ ] Template system details (#8)
-- [ ] Audit requirements (#11)
+**Decided for MVP (Simple Approaches):**
+- [x] Business hours awareness (#5) ✅ **DECIDED** - Deferred to post-MVP
+- [x] Campaign modes (#9) ✅ **DECIDED** - Unified model
+- [x] User management approach (#10) ✅ **DECIDED** - No auth for MVP
+- [x] Template system details (#8) ✅ **DECIDED** - Files for MVP
+- [x] Audit requirements (#11) ✅ **DECIDED** - Python logging for MVP
+
+**All decisions finalized. See [decisions.md](decisions.md) for complete details.**
 
 ### Decision Template
 

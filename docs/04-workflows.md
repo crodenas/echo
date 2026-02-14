@@ -37,7 +37,7 @@ This document describes the operational workflows and processes in ECHO.
 **Automatic Process:**
 1. EventBridge triggers campaign schedule
 2. ECHO creates new cycle instance
-3. Cycle executes (see "Cycle Execution" below)
+3. Cycle executes (see "Wave Execution" below)
 4. Repeat on schedule indefinitely
 
 **Monitoring:**
@@ -85,7 +85,7 @@ This document describes the operational workflows and processes in ECHO.
 4. Archive campaign data
 5. Delete campaign record (or mark as deleted)
 
-## Cycle Execution Workflow
+## Wave Execution Workflow
 
 ### Phase 1: Initialization
 
@@ -128,7 +128,7 @@ Campaign Schedule Triggers
 - Connection failures: Retry with exponential backoff
 - Invalid data: Skip record, log warning
 - Missing required fields: Skip record, log error
-- Complete failure: Cancel cycle, alert admin
+- Complete failure: Cancel cycle, alert admin and campaign owner
 
 ### Phase 3: Verification Assessment
 
@@ -137,7 +137,7 @@ FOR EACH record in cycle:
   1. CHECK verification status
      ├─> Has last_verified timestamp?
      ├─> Is last_verified >= cycle.start_date?
-     └─> Are contacts changed since last sync?
+     └─> Are any contact fields changed since last sync?
 
   2. APPLY verification logic
      └─> If verified: set status = 'verified'
@@ -172,10 +172,16 @@ FOR EACH record in cycle:
 **Grouping Example:**
 ```
 Records:
-  - service-1: contacts = [alice, bob]
-  - service-2: contacts = [alice]
-  - service-3: contacts = [charlie]
+  - service-1: owner = alice, system_custodian = bob
+  - service-2: owner = alice
+  - service-3: owner = charlie
 
+Escalation Level 0 configured with recipients: ["owner"]
+Notifications Created:
+  - To: alice (records: [service-1, service-2])
+  - To: charlie (records: [service-3])
+
+Escalation Level 1 configured with recipients: ["owner", "system_custodian"]
 Notifications Created:
   - To: alice (records: [service-1, service-2])
   - To: bob (records: [service-1])
@@ -257,15 +263,15 @@ Actions:
 ### Linear Escalation (Default)
 
 ```
-Level 1: Day 0  → Notify record contacts
+Level 0: Day 0  → Initial notification to owner
          ↓
         Wait 7 days
          ↓
-Level 2: Day 7  → Notify record contacts
+Level 1: Day 7  → First reminder to owner + system_custodian
          ↓
         Wait 7 days
          ↓
-Level 3: Day 14 → Notify record contacts + team lead
+Level 2: Day 14 → Second reminder to owner + system_custodian + owner.manager
          ↓
         Cycle ends
 ```
@@ -276,25 +282,25 @@ Level 3: Day 14 → Notify record contacts + team lead
 {
   "escalations": [
     {
-      "level": 1,
-      "recipients": ["record_contacts"],
+      "level": 0,
+      "recipients": ["owner"],
       "delay_days": 0,
       "message": "Please verify your resources"
     },
     {
-      "level": 2,
-      "recipients": ["record_contacts"],
+      "level": 1,
+      "recipients": ["owner", "system_custodian"],
       "delay_days": 3,
       "message": "Reminder: Verification needed"
     },
     {
-      "level": 3,
-      "recipients": ["record_contacts", "manager"],
+      "level": 2,
+      "recipients": ["owner", "system_custodian", "owner.manager"],
       "delay_days": 7,
       "message": "Final notice: Escalated to manager"
     },
     {
-      "level": 4,
+      "level": 3,
       "recipients": ["team_lead@example.com"],
       "delay_days": 10,
       "message": "Unverified resources require attention"
@@ -350,9 +356,9 @@ Content-Type: application/json
 
 ## Edge Case Workflows
 
-### 1. Record Without Contacts
+### 1. Record Without Contact Fields
 
-**Scenario:** Data source returns record with no contacts.
+**Scenario:** Data source returns record with no contact fields (or all contact fields are null/empty).
 
 **Workflow:**
 ```
@@ -360,7 +366,7 @@ Content-Type: application/json
 2. LOG warning with object_id
 3. SKIP notification for this record
 4. ADD to campaign owner's summary report
-5. ESCALATE to owner if configured
+5. ESCALATE to campaign owner if configured
 ```
 
 **Configuration Option:**
@@ -402,13 +408,13 @@ Content-Type: application/json
    ├─> LOG error with details
    ├─> INCREMENT failure_count
    ├─> RETRY with exponential backoff
-   └─> IF all retries fail:
-       ├─> PAUSE cycle
-       ├─> ALERT campaign owner
-       └─> SET status = 'error'
+   └─> IF all retries fail (complete failure):
+       ├─> CANCEL cycle
+       ├─> ALERT admin and campaign owner
+       └─> SET status = 'cancelled'
 
-3. RESUME when resolved
-   └─> Manual trigger or auto-retry
+3. MANUAL recovery required
+   └─> Admin or campaign owner can restart cycle after fixing data source
 ```
 
 ### 4. Mid-Cycle Campaign Update
@@ -420,7 +426,35 @@ Content-Type: application/json
 - New cycles use updated settings
 - No retroactive changes to running cycles
 
-### 5. Stale Verification
+### 5. Campaign Disabled Mid-Cycle
+
+**Scenario:** User disables campaign while cycle is in progress.
+
+**Behavior:**
+```
+1. SET campaign.enabled = false
+2. STOP creating new cycles
+3. ALLOW in-progress cycles to complete normally
+   ├─> Existing escalation jobs continue to execute
+   └─> Records can still be verified
+4. Campaign schedule remains in scheduler
+   └─> When schedule fires, check enabled flag and skip if false
+```
+
+**Re-enabling:**
+```
+1. SET campaign.enabled = true
+2. Wait for next scheduled cycle
+3. Start fresh cycle (doesn't resume or catch up)
+```
+
+**Force Stop (Manual):**
+If immediate cancellation needed, manually:
+- Delete cycle records from database
+- Cancel escalation jobs in scheduler
+- Notify affected contacts (optional)
+
+### 6. Stale Verification
 
 **Scenario:** Record hasn't been verified in multiple cycles.
 

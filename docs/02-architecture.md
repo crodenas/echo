@@ -38,7 +38,7 @@ This document describes ECHO's architectural design, components, and integration
 - Execute queries or API calls to fetch current data
 - Transform and validate incoming data
 - Detect changes from previous sync
-- Update ECHO's internal record cache
+- Update ECHO's internal record cache (only for hash-based verification when no timestamps available)
 
 **Key Operations:**
 - Scheduled data refresh (per cycle or on-demand)
@@ -80,7 +80,7 @@ HTTP Endpoint:
 **Key Components:**
 
 **Campaign Scheduler:**
-- Uses APScheduler (in-process) or AWS EventBridge (external)
+- AWS EventBridge Scheduler (decided - see decisions.md)
 - Triggers new cycle creation per campaign schedule
 - Manages cycle lifecycle (start, progress, complete)
 
@@ -155,7 +155,7 @@ HTTP Endpoint:
 
 ## Data Flow
 
-### Cycle Execution Flow
+### Wave Execution Flow
 
 ```
 1. CAMPAIGN SCHEDULE TRIGGERS
@@ -165,7 +165,7 @@ HTTP Endpoint:
    ├─> Connect to data source
    ├─> Fetch current records
    ├─> Transform and validate
-   └─> Update record cache in ECHO DB
+   └─> Update record cache in ECHO DB (only if using hash-based verification)
 
 3. PROCESSING PHASE
    ├─> Evaluate verification status per record
@@ -240,16 +240,91 @@ ECHO Notification Queue
 
 ### Scheduler Integration
 
-**Option 1: APScheduler (In-Process)**
-- Simple deployment
-- Suitable for single-instance
-- Limited scalability
+**AWS EventBridge Scheduler** (all environments)
+- Distributed scheduling with high availability
+- Schedule groups for organization (dev, prod)
+- AWS cron format expressions
+- Persistent across application restarts
+- No need for separate dev/prod implementations
 
-**Option 2: AWS EventBridge (External)**
-- Distributed scheduling
-- High availability
-- Better for multi-instance deployments
-- Requires AWS cron format
+**Handling Disabled Campaigns:**
+- Campaign schedules remain in scheduler when disabled
+- On schedule trigger, check `campaign.enabled` flag before executing
+- If disabled, skip execution and log event
+- In-progress cycles continue to completion (escalation jobs still fire)
+- Simpler than removing/re-adding schedules on enable/disable
+
+### Employee Directory Integration
+
+**Azure AD Protected REST API** (contact resolution and manager hierarchy)
+
+```
+ECHO Processing Engine
+       │
+       ├──> Contact Resolution
+       │    └──> Employee API (SystemId → Employee)
+       │
+       └──> Manager Hierarchy
+            └──> Employee API (SupervisorSystemId chain)
+```
+
+**Purpose:**
+- Resolve contact identifiers (SystemId) to employee information
+- Traverse manager hierarchy for escalations
+- Provide email addresses for notifications
+
+**Employee API Features:**
+- **Authentication:** Azure AD OAuth 2.0
+- **Primary Lookup:** GET /employees/{SystemId}
+- **Response:** Employee record with email, name, and supervisor reference
+- **Manager Chain:** Follow SupervisorSystemId to traverse hierarchy
+- **Data Refresh:** Every 24 hours (exact time unknown)
+- **Data Staleness:** Employee data may be up to 24 hours old
+
+**Integration Pattern:**
+```python
+# Escalation recipients: ["tech_lead", "tech_lead.manager"]
+# Record: {"tech_lead": "j2y0092", ...}
+
+# 1. Resolve base contact
+employee = await employee_service.get_employee("j2y0092")
+# → Rosita Kingstne <rkingstne63@creativecommons.org>
+
+# 2. Resolve manager
+manager = await employee_service.get_manager(employee)
+# → Cortney Larner <clarnerea@geocities.com>
+
+# 3. Send notifications
+await notify(employee.InternetEmailAddress, records)
+await notify(manager.InternetEmailAddress, records)
+```
+
+**Performance Optimization:**
+- **Aggressive caching (12 hours)** - Employee API only refreshes every 24 hours
+- Time-based cache expiration (optional: align with API refresh time if known)
+- Batch lookups when processing multiple recipients
+- Async HTTP client with connection pooling
+- Fresh lookup at each escalation level (per Decision #12) - but from cache if available
+- **Cache hit ratio:** Expected >95% for typical campaign cycles
+
+**Error Handling:**
+- Missing employee: Log warning, skip recipient
+- Missing manager: Stop hierarchy traversal gracefully
+- API unavailable: Retry with exponential backoff
+- Cache failures: Fall back to direct API calls
+- Email bounces (departed employees): Acceptable - notification delivery will fail and be logged
+
+**Operational Constraints:**
+- Employee data refresh cycle (24 hours) means recently departed employees may still appear in API
+- Manager changes may have up to 24-hour delay before visible in ECHO
+- Fresh contact lookups (Decision #12) are still limited by this refresh cycle
+- Email bounce handling provides feedback on invalid employee addresses
+
+**Security:**
+- ECHO service principal for API authentication
+- Credentials stored in AWS Systems Manager Parameter Store
+- Employee data never exposed in notification content
+- Only used for routing notifications to correct recipients
 
 ## Technology Stack (Proposed)
 
@@ -264,8 +339,8 @@ ECHO Notification Queue
 - **Migrations**: Alembic (schema versioning)
 
 ### Scheduling
-- **Development**: APScheduler (in-process)
-- **Production**: AWS EventBridge Scheduler (distributed)
+- **All Environments**: AWS EventBridge Scheduler
+- **Schedule Groups**: Separate dev/prod schedules by group
 - **Cron Format**: AWS cron expressions
 
 ### Notification Channels
