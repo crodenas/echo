@@ -24,3 +24,18 @@ Cycle - A cycle is series of notifications that are sent to the contacts associa
 Notification - A notification is a message that is sent to a contact.  A notification is defined by a template, a recipient and template metadata.
 
 Echo - A management system for scheduling and managing escalating notification campaigns.
+
+Technologies:
+- Backend: Echo's backend is built using Python and FastAPI, providing a RESTful API for managing campaigns, templates, and notifications.
+- Database: Echo uses PostgreSQL for storing campaign data, templates, and notification history.
+- API first design principles
+- I want minimal front end to start, maybe just a dashboard to view campaigns and their status.  The main interaction with Echo will be through the API, allowing teams to integrate it into their existing workflows and tools.
+- This will run in AWS, leveraging ECS, with possibility to use other AWS services it makes sense (e.g., S3 for storing templates, CloudWatch for logging and monitoring, etc.).
+- Ask questions about the tech stack and design choices to ensure that the architecture is scalable, maintainable, and meets the needs of the users.
+- I want well-architected code that follows best practices for software development, including modular design, separation of concerns, and adherence to SOLID principles.
+- I want to implement a robust testing strategy, including unit tests, integration tests, and end-to-end tests to ensure the reliability and stability of the application.
+- I want to implement a CI/CD pipeline to automate the testing and deployment process, ensuring that new features and bug fixes are delivered quickly and reliably to users.
+
+I want to use uv for python
+I want to have make file for common tasks (e.g., running the server, running tests, etc.) to simplify development and ensure consistency across the team.
+Some example data in examples/
