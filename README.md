@@ -1,6 +1,6 @@
 # ECHO - Enterprise Campaign Handling and Orchestration
 
-**Status:** ✅ Design Complete - Ready for Implementation
+**Status:** ✅ Simplified MVP - Ready for Implementation (8-10 weeks)
 
 ECHO is an enterprise software system designed to help teams manage and verify resource inventory data through automated notification campaigns. The system enables teams to maintain data accuracy by sending periodic verification requests to resource contacts without requiring changes to existing data sources.
 
@@ -18,18 +18,25 @@ Enterprise teams struggle to keep resource inventory data (services, databases, 
 
 - ✅ **Read-only integration** - No changes to your existing data sources
 - ✅ **Automated campaigns** - Set schedules, define escalation policies, let it run
-- ✅ **Multi-tenant** - One system supports multiple teams and campaigns
-- ✅ **Flexible data sources** - SQL databases, REST APIs, HTTP endpoints
-- ✅ **Multi-channel notifications** - Email, Microsoft Teams, Slack
+- ✅ **Manager escalations** - Automatically escalate to managers using `.manager` syntax
+- ✅ **Employee directory integration** - Resolve SystemIds to emails, traverse hierarchy
+- ✅ **Timestamp-based verification** - Simple, reliable verification detection
 
-## Key Features
+**MVP Scope:**
+- PostgreSQL data sources (MySQL, REST API in MVP+)
+- Email notifications (Teams, Slack in MVP+)
+- Single tenant (multi-tenancy in MVP+)
 
-- **Campaign Management**: Create, schedule, and manage notification campaigns
-- **Automated Scheduling**: Periodic verification cycles with configurable frequency
-- **Escalation Policies**: Multi-level notification escalations with custom recipients
-- **Template System**: Customizable notification templates per channel
-- **Contact Grouping**: One notification per user with all their assigned resources
-- **Progress Tracking**: Monitor verification status and campaign performance
+## Key Features (MVP)
+
+- **Campaign Management**: Create, schedule, and manage campaigns via REST API
+- **Automated Scheduling**: AWS EventBridge for reliable cycle triggers
+- **Manager Escalation Chains**: Support `owner.manager.manager` syntax
+- **Employee Directory**: Azure AD protected API for contact resolution
+- **Email Notifications**: AWS SES with Jinja2 templates
+- **Contact Grouping**: One email per recipient with all their records
+- **Timestamp Verification**: Require `last_verified` field in data source
+- **Progress Tracking**: Monitor cycles and notification delivery
 
 ## Documentation
 
@@ -40,26 +47,34 @@ This repository contains comprehensive design documentation. Review in this orde
 3. **[Architecture](docs/02-architecture.md)** - System components and data flow
 4. **[Data Model](docs/03-data-model.md)** - Data sources, schemas, requirements
 5. **[Workflows](docs/04-workflows.md)** - How campaigns execute end-to-end
-6. **[Decisions](docs/decisions.md)** - ✅ **All design decisions (finalized 2026-02-14)**
-7. **[Feasibility Analysis](docs/05-feasibility-analysis.md)** - System is achievable in 12-14 weeks
-8. **[Implementation Plan](docs/implementation-plan.md)** - Tech stack and roadmap
+6. **[Decisions](docs/decisions.md)** - ✅ **All design decisions (updated 2026-02-15 with MVP simplifications)**
+7. **[Roadmap](docs/roadmap.md)** - ✅ **Feature roadmap by version (MVP, MVP+, Future)**
+8. **[Implementation Plan](docs/implementation-plan.md)** - ✅ **Simplified MVP implementation plan (8-10 weeks)**
 
 ## Project Status
 
-**Current Phase:** ✅ Design Complete → Ready for Implementation
+**Current Phase:** ✅ Simplified MVP Design → Ready for Implementation
 
 - ✅ Core concepts defined
-- ✅ Architecture designed
+- ✅ Architecture designed (simplified for MVP)
 - ✅ Data model specified
 - ✅ Workflows documented
-- ✅ **All design decisions finalized (2026-02-14)**
-- ✅ **Feasibility validated**
+- ✅ **All design decisions finalized and simplified (2026-02-15)**
+- ✅ **MVP scope reduced by ~30-40% (8-10 weeks vs 12-14 weeks)**
+- ✅ **Roadmap created** - See [Roadmap](docs/roadmap.md)
 - ⏳ Implementation Phase 1 ready to begin
 
+**Key Simplifications:**
+- Require `last_verified` timestamp (no hash-based verification)
+- Email only (no Teams/Slack for MVP)
+- PostgreSQL only (no multiple data sources)
+- Background jobs (no per-escalation containers)
+- Keep Employee Directory + `.manager` syntax ✅
+
 **Next Steps:**
-1. ~~Review and finalize design decisions~~ ✅ Complete - See [Decisions](docs/decisions.md)
-2. ~~Validate feasibility and scope~~ ✅ Complete - See [Feasibility Analysis](docs/05-feasibility-analysis.md)
-3. **BEGIN Phase 1: Foundation implementation** (2-3 weeks)
+1. ~~Review and finalize design decisions~~ ✅ Complete
+2. ~~Simplify MVP scope~~ ✅ Complete
+3. **BEGIN Phase 1: Foundation implementation** (Week 1-2)
 
 ## Quick Start (When Implemented)
 
@@ -80,15 +95,20 @@ make test
 
 See [Implementation Plan](docs/implementation-plan.md) for detailed setup instructions.
 
-## Technology Stack (Proposed)
+## Technology Stack (MVP)
 
-- **Backend**: FastAPI + Python 3.13+
-- **Database**: PostgreSQL + SQLAlchemy
-- **Scheduling**: APScheduler (dev) / AWS EventBridge (prod)
-- **Notifications**: AWS SES, Microsoft Teams, Slack
-- **Templates**: Jinja2
+- **Backend**: FastAPI + Python 3.13+ (async)
+- **Database**: PostgreSQL + SQLAlchemy 2.0 (async)
+- **Scheduling**: AWS EventBridge Scheduler (all environments)
+- **Notifications**: AWS SES (email only for MVP)
+- **Authentication**: Azure AD OAuth2
+- **Employee Directory**: Azure AD protected REST API
+- **Templates**: Jinja2 (file-based)
+- **Deployment**: Single ECS service (API + background jobs)
 - **Package Manager**: uv
 - **Code Quality**: ruff, mypy, pytest
+
+**Post-MVP:** Teams/Slack channels, MySQL/REST API sources, per-escalation containers
 
 ## Examples
 

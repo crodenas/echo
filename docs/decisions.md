@@ -3,7 +3,8 @@
 This document records all design decisions made for the ECHO project.
 
 **Decision Date:** 2026-02-14
-**Status:** All critical decisions finalized, ready for implementation
+**Last Updated:** 2026-02-15 (MVP Simplifications)
+**Status:** Simplified for MVP - ready for implementation
 
 ---
 
@@ -13,51 +14,97 @@ This document records all design decisions made for the ECHO project.
 
 **Question:** How should ECHO determine if a record has been verified?
 
-**Selected Option:** Tiered approach with auto-detection
+**Selected Option (MVP):** Require `last_verified` timestamp field
+
+**UPDATED 2026-02-15:** Simplified from two-tier approach to single timestamp requirement for MVP.
 
 **Implementation:**
 
-**Tier 0 - Hash-based (Minimum requirement):**
-- Calculate SHA256 hash of entire record (excluding `object_id`)
-- Compare hash between sync cycles
-- Any change = verified
-- Zero requirements on data source
+**Data Source Requirement:**
+```sql
+-- Data source MUST include last_verified timestamp
+CREATE VIEW echo_services_view AS
+SELECT
+  service_id AS object_id,              -- Required
+  last_verified_date AS last_verified,  -- Required (timestamp)
+  owner_system_id AS owner,             -- Required (contact)
+  service_name AS name,                 -- Optional
+  description                           -- Optional
+FROM services;
+```
 
-**Tier 1 - Timestamp-based (If available):**
-- Auto-detect `last_updated` or `last_verified` timestamp fields
-- Compare timestamp against cycle start date
-- If timestamp >= cycle start = verified
-
-**Auto-detection logic:**
+**Validation at Campaign Creation:**
 ```python
-def detect_verification_tier(sample_record):
-    if "last_verified" in sample_record:
-        return "tier1_verified_timestamp"
-    elif "last_updated" in sample_record:
-        return "tier1_updated_timestamp"
-    else:
-        return "tier0_hash_change"
+def validate_data_source(data_source_config):
+    """Validate that data source has required fields."""
+    sample = fetch_sample_record(data_source_config)
+
+    if "object_id" not in sample:
+        raise ValidationError("Data source must include 'object_id' field")
+
+    if "last_verified" not in sample:
+        raise ValidationError(
+            "Data source must include 'last_verified' timestamp field. "
+            "Add this to your SQL view or use an existing timestamp field."
+        )
+
+    # Check for at least one contact field
+    contact_fields = [k for k in sample.keys()
+                     if k not in ["object_id", "last_verified", "name", "description"]]
+    if not contact_fields:
+        raise ValidationError("Data source must include at least one contact field")
+```
+
+**Verification Logic (Simple):**
+```python
+def is_verified(record: dict, cycle_start_date: datetime) -> bool:
+    """Check if record was verified since cycle started."""
+    last_verified = record.get("last_verified")
+
+    if not last_verified:
+        return False  # Never verified
+
+    return last_verified >= cycle_start_date
 ```
 
 **Rationale:**
-- Tier 0 removes all barriers to entry (teams start with existing data)
-- Tier 1 provides better accuracy when timestamps available
-- Auto-detection is user-friendly (smart defaults)
-- Hashing entire record is simple for MVP (no field selection)
-- Contact change counts as verification (keeps it simple)
-- Provides growth path (teams can add timestamps later)
+- **Much simpler implementation** - Single code path, no hash logic
+- **Clear requirement** - Teams know they need to add timestamp field
+- **Better semantics** - Timestamp is more meaningful than "any change"
+- **Easier testing** - One verification method to test
+- **Most teams can comply** - Easy to add timestamp field to views
+- **Faster to market** - Saves ~1 week of implementation time
+
+**What Teams Need to Do:**
+```sql
+-- Option 1: Use existing timestamp
+SELECT
+  service_id AS object_id,
+  updated_at AS last_verified  -- Repurpose existing field
+FROM services;
+
+-- Option 2: Add new field (starts NULL = "never verified")
+ALTER VIEW echo_services_view
+  ADD COLUMN last_verified TIMESTAMP DEFAULT NULL;
+
+-- Option 3: Use current timestamp as starting point
+SELECT
+  service_id AS object_id,
+  CURRENT_TIMESTAMP AS last_verified  -- Everyone starts "verified"
+FROM services;
+```
 
 **Implications:**
-- Need hash calculation utility (SHA256)
-- Need schema detection during campaign creation
-- Testing requires mocking various data source structures
-- Documentation must explain tiers and trade-offs
+- Teams must be able to modify their data source (add/rename field)
+- Teams with truly immutable data sources cannot use MVP
+- Single verification code path (simpler, faster)
+- No hash storage needed (smaller database)
 
-**Deferred to Post-MVP:**
-- Field selection for hash calculation
-- Tier 2 (explicit verification flag)
-- Tier 3 (API endpoint for manual verification)
-- Upgrade suggestion messaging
+**Deferred to MVP+:**
+- **Tier 0 (Hash-based verification)** - For data sources without timestamps
+- Auto-detection of timestamp fields (just require `last_verified` for MVP)
+- Alternative field names support (`last_updated`, `verified_date`, etc.)
+- Explicit verification API endpoint
 
 ---
 
@@ -65,59 +112,53 @@ def detect_verification_tier(sample_record):
 
 **Question:** What should happen when a record has no valid contacts?
 
-**Selected Option:** Escalate to campaign owner at cycle start
+**Selected Option (MVP):** Skip and log (simplified)
+
+**UPDATED 2026-02-15:** Simplified to just log warnings for MVP.
 
 **Implementation:**
 ```python
-def start_cycle(campaign):
-    records = fetch_records_from_source(campaign.data_source)
+async def execute_escalation(cycle_id: str, escalation_level: int):
+    """Execute escalation, skip records without contacts."""
 
-    # Separate valid vs orphaned
-    valid_records = [r for r in records if r.contacts and len(r.contacts) > 0]
-    orphaned_records = [r for r in records if not r.contacts or len(r.contacts) == 0]
+    records = await fetch_from_source()
 
-    # Create cycle with valid records only
-    cycle = create_cycle(campaign, valid_records)
+    for record in records:
+        # Skip records without contacts
+        if not has_valid_contacts(record):
+            logger.warning(
+                f"Skipping record {record['object_id']} - no valid contacts",
+                extra={
+                    "cycle_id": cycle_id,
+                    "record_id": record["object_id"],
+                    "campaign_id": campaign.id
+                }
+            )
+            continue
 
-    # Immediately notify owner about orphans (if any)
-    if orphaned_records:
-        send_email(
-            to=campaign.owner_email,
-            subject=f"[ECHO] {len(orphaned_records)} orphaned records",
-            body=render_template("orphaned_records.html",
-                                records=orphaned_records,
-                                cycle=cycle)
-        )
-
-    return cycle
-```
-
-**Campaign configuration:**
-```python
-{
-  "owner_email": "alice@example.com",  # Receives orphan notifications
-  ...
-}
+        # Process normally
+        ...
 ```
 
 **Rationale:**
-- Simple to implement (filter and email immediately)
-- No storage needed (don't track orphans across escalations)
-- Immediate feedback (owner knows at cycle start)
-- Clear responsibility (campaign owner handles data quality)
-- One email per cycle (orphans don't change during cycle)
+- **Simplest implementation** - No email workflow needed
+- **CloudWatch visibility** - Warnings visible in logs
+- **No extra templates** - One less email template to maintain
+- **Campaign owner can check logs** - If they care about orphans
+- **Defers complexity** - Can add notifications later if needed
 
 **Implications:**
-- Campaign model needs `owner_email` field
-- Need orphaned records email template
-- Orphaned records excluded from cycle (not stored)
-- Documentation should guide owners on fixing source data
+- Records without contacts are silently skipped (logged only)
+- Campaign owners should monitor CloudWatch logs if concerned
+- No proactive notification about data quality issues
+- Documentation should mention this behavior
 
-**Deferred to Post-MVP:**
-- Fallback contacts configuration
-- Real-time alerts vs. cycle-start summary
-- Team/group owner emails
+**Deferred to MVP+:**
+- Email notifications to campaign owner about orphaned records
+- Orphaned records summary report
+- Fallback contact configuration
 - Orphan tracking history
+- Dashboard showing orphaned record counts
 
 ---
 
@@ -196,83 +237,158 @@ def trigger_new_cycle(campaign_id):
 
 **Question:** How should multiple notification channels be handled?
 
-**Selected Option:** Campaign-level channel configuration with extensible architecture
+**Selected Option (MVP):** Email only, direct implementation (no abstraction)
+
+**UPDATED 2026-02-15:** Simplified to direct email implementation for MVP.
 
 **Implementation:**
 
-**MVP - Email Only:**
+**Campaign Configuration:**
 ```python
-# Campaign configuration
 {
   "name": "Q1 Service Verification",
-  "notification_channels": {
-    "email": {
-      "enabled": true,
-      "template_id": "custom_email_template_v2",
-      "from_address": "noreply@echo.example.com"
-    }
-  },
-  "default_channel": "email"
+  "email_template_name": "default"  # Simple: just template name
 }
 ```
 
-**Extensible Architecture:**
+**Email Service (Direct Implementation):**
 ```python
-# Channel Protocol
-class NotificationChannel(Protocol):
-    def send(self, recipient, records, campaign, template) -> NotificationResult: ...
-    def validate_recipient(self, recipient) -> bool: ...
+# src/services/email_service.py
+class EmailService:
+    def __init__(self):
+        self.ses_client = boto3.client('ses')
+        self.template_env = Environment(loader=FileSystemLoader('src/templates/email'))
 
-# Email Implementation (MVP)
-class EmailChannel:
-    def send(self, recipient, records, campaign, template):
-        # Render and send email
-        ...
+    async def send_notification(
+        self,
+        recipient_email: str,
+        recipient_name: str,
+        records: list[dict],
+        campaign: Campaign,
+        escalation_level: int
+    ):
+        """Send email notification via AWS SES."""
 
-# Future: Teams, Slack
-# class TeamsChannel: ...
-# class SlackChannel: ...
+        # Load and render template
+        template = self.template_env.get_template(f"{campaign.email_template_name}.html")
+        html_body = template.render(
+            recipient={"email": recipient_email, "name": recipient_name},
+            campaign=campaign,
+            records=records,
+            escalation_level=escalation_level
+        )
 
-# Channel Registry
-AVAILABLE_CHANNELS = {
-    "email": EmailChannel(),
-    # "teams": TeamsChannel(),  # Post-MVP
-    # "slack": SlackChannel(),   # Post-MVP
-}
+        # Send via SES
+        self.ses_client.send_email(
+            Source=settings.email_from_address,
+            Destination={"ToAddresses": [recipient_email]},
+            Message={
+                "Subject": {"Data": f"[ECHO] {campaign.name} - Verification Required"},
+                "Body": {"Html": {"Data": html_body}}
+            }
+        )
 ```
 
-**Template Management:**
-```python
-# Template model
-{
-  "template_id": "custom_email_template_v2",
-  "channel_type": "email",
-  "campaign_id": "campaign-123",
-  "subject": "Please verify your resources",
-  "body_html": "<html>...</html>",
-  "body_text": "Plain text fallback..."
-}
+**Templates (Jinja2 Files):**
+```
+src/templates/email/
+├── default.html      # Default template
+└── (custom templates can be added as files)
 ```
 
 **Rationale:**
-- Email-only for MVP keeps implementation simple
-- Protocol-based design makes adding channels trivial
-- Campaign owner provides templates (controls messaging)
-- Extensible structure supports future channels
-- Each channel can have channel-specific config
+- **Simplest possible implementation** - Direct SES integration
+- **No abstraction overhead** - No protocol, no registry, no factory
+- **Faster to implement** - ~3-5 days saved
+- **Email is sufficient** - Proves value without complexity
+- **Easy to extend later** - Can add abstraction when actually needed
 
 **Implications:**
-- Implement NotificationChannel protocol
-- Implement EmailChannel with SES
-- Template storage and management needed
-- Campaign owner must provide email template
+- No NotificationChannel protocol (YAGNI for MVP)
+- Templates are files only (no database storage)
+- Campaign just stores template name (string field)
+- Direct boto3 SES calls
 
-**Deferred to Post-MVP:**
+**Deferred to MVP+:**
+- NotificationChannel protocol abstraction
 - Microsoft Teams channel implementation
 - Slack channel implementation
 - User preference system (choose preferred channel)
 - Multi-channel per campaign (email + Teams)
 - Fallback channel logic
+- Database-stored custom templates
+
+---
+
+### Decision #5: Execution Model
+
+**Question:** How should escalations be executed? Isolated containers or in-process jobs?
+
+**Selected Option (MVP):** Background jobs in API service (simplified)
+
+**ADDED 2026-02-15:** Simplified execution model for MVP.
+
+**Implementation:**
+
+**Single ECS Service (Runs everything):**
+```python
+# src/api/routes/internal.py
+@router.post("/internal/execute-escalation/{cycle_id}/{level}")
+async def execute_escalation_webhook(
+    cycle_id: str,
+    level: int,
+    background_tasks: BackgroundTasks
+):
+    """
+    EventBridge triggers this endpoint.
+    Queue as background task and return immediately.
+    """
+    background_tasks.add_task(
+        cycle_service.execute_escalation,
+        cycle_id,
+        level
+    )
+    return {"status": "queued"}
+
+# Escalation runs as async task within the API service
+async def execute_escalation(cycle_id: str, level: int):
+    # Fetch data, send notifications, etc.
+    ...
+```
+
+**Architecture:**
+```
+EventBridge Schedule
+  ↓
+POST /internal/execute-escalation/{cycle_id}/{level}
+  ↓
+API Service (FastAPI BackgroundTasks)
+  ↓
+Execute escalation asynchronously
+  ↓
+Return 200 OK (EventBridge happy)
+```
+
+**Rationale:**
+- **Much simpler infrastructure** - Single ECS service deployment
+- **Easier local development** - Just run FastAPI dev server
+- **Faster to implement** - No container orchestration needed (~1 week saved)
+- **Good enough for MVP** - FastAPI BackgroundTasks handle concurrency
+- **Still isolated** - Separate async tasks don't block main API
+- **Easier debugging** - All logs in one place
+
+**Implications:**
+- All escalations run in same process (but async)
+- Need reasonable memory limits (handle multiple concurrent escalations)
+- No per-escalation resource limits
+- Simpler monitoring (one service to watch)
+
+**Deferred to MVP+:**
+- **Per-escalation ECS tasks** - Isolated containers for each escalation
+- Resource limits per escalation
+- Dead letter queue for failed escalations
+- Advanced retry strategies
+- Separate worker service
 
 ---
 
@@ -855,6 +971,8 @@ Day 7 (Escalation 2): ["contact1", "contact1.manager"]
 
 **Selected Option:** Azure-protected Employee REST API with SystemId-based lookups
 
+**CONFIRMED 2026-02-15:** KEEP for MVP - simpler than initially estimated (~1 week, not 2-3 weeks) because we're already implementing Azure AD OAuth2 for the ECHO API (Decision #10). Calling another Azure AD protected API reuses the same authentication pattern.
+
 **Integration Details:**
 
 **Employee API:**
@@ -1082,25 +1200,98 @@ EMPLOYEE_API_CLIENT_SECRET_PARAM=/echo/integrations/employee-api/client-secret
 
 ---
 
+### Decision #14: Data Source Types
+
+**Question:** Which data source types should MVP support?
+
+**Selected Option (MVP):** PostgreSQL only
+
+**ADDED 2026-02-15:** Simplified to single data source type for MVP.
+
+**Implementation:**
+
+**PostgreSQL Connector (Only):**
+```python
+# src/integrations/data_sources/postgresql.py
+class PostgreSQLDataSource:
+    """PostgreSQL data source connector."""
+
+    def __init__(self, connection_param: str, query: str):
+        self.connection_param = connection_param  # Parameter Store path
+        self.query = query
+
+    async def fetch_records(self) -> list[dict]:
+        """Execute query and return all records."""
+
+        # Fetch connection string from Parameter Store
+        connection_string = get_connection_string(self.connection_param)
+
+        # Execute query
+        conn = await asyncpg.connect(connection_string)
+        try:
+            rows = await conn.fetch(self.query)
+            return [dict(row) for row in rows]
+        finally:
+            await conn.close()
+```
+
+**Campaign Configuration:**
+```python
+{
+  "data_source": {
+    "type": "postgresql",  # Only option for MVP
+    "connection_string": "postgresql://user:pass@host:5432/db",
+    "query": "SELECT * FROM echo_services_view"
+  }
+}
+```
+
+**Rationale:**
+- **Focus on one connector done well** - Better than multiple half-built connectors
+- **Most common enterprise database** - PostgreSQL is widely used
+- **ECHO uses PostgreSQL** - Dogfooding (can query own database)
+- **Easy to create views** - Teams can create dedicated views for ECHO
+- **Faster to implement** - Single connector with good error handling
+- **Proves core value** - Doesn't need multiple sources to be useful
+
+**Implications:**
+- Only PostgreSQL data sources supported
+- Teams with other databases must create proxy/wrapper
+- Or wait for their database type in MVP+
+
+**Deferred to MVP+:**
+- MySQL/MariaDB connector
+- REST API connector
+- HTTP endpoint connector
+- GraphQL connector
+- CSV/file-based connector
+- Oracle, SQL Server, etc.
+
+---
+
 ## Summary
 
-### All Decisions at a Glance
+### All Decisions at a Glance (UPDATED 2026-02-15)
 
 | # | Question | MVP Decision | Deferred |
 |---|----------|--------------|----------|
-| 1 | Verification Detection | Tier 0 (hash) + Tier 1 (timestamp), auto-detect | Field selection, Tier 2/3, upgrade messaging |
-| 2 | Contact-less Records | Notify owner at cycle start | Fallback contacts, tracking history |
+| 1 | Verification Detection | **Require `last_verified` timestamp** | Hash-based (Tier 0), auto-detection |
+| 2 | Contact-less Records | **Skip and log (simplified)** | Owner notifications, tracking history |
 | 3 | Cycle Overlap | Validation + Skip | Auto-adjustment, advanced handling |
-| 4 | Multi-Channel | Email-only, extensible architecture | Teams, Slack, user preferences |
-| 5 | Notification Frequency | Configurable per escalation | Business hours, smart escalation |
-| 6 | Scheduler | EventBridge (dev and prod) | Mock scheduler, cross-region |
+| 4 | Multi-Channel | **Email only, direct implementation** | Protocol abstraction, Teams, Slack |
+| 5 | Execution Model | **Background jobs in API service** | Per-escalation ECS tasks, DLQ |
+| 6 | Scheduler | EventBridge (all environments) | Cross-region, advanced retry |
 | 7 | Database | PostgreSQL | Partitioning, read replicas |
-| 8 | Template System | Jinja2 in campaign JSONB | Database templates, editor UI |
-| 9 | Campaign Modes | Unified flexible model | Specialized modes if needed |
-| 10 | Authentication | Azure AD OAuth2 (single tenant) | RBAC via groups, multi-tenancy, delegation |
-| 11 | Audit Logging | Standard Python logging | Immutable audit table, compliance |
-| 12 | Contact Resolution Timing | Fresh lookup at each escalation | Contact change detection, escalation reset |
-| 13 | Employee Directory Integration | Azure REST API with SystemId lookups | Employee caching, alt formats, preferences |
+| 8 | Template System | Jinja2 files | Database templates, editor UI |
+| 9 | Campaign Modes | Unified flexible model | Specialized modes |
+| 10 | Authentication | Azure AD OAuth2 | RBAC roles, multi-tenancy |
+| 11 | Audit Logging | Standard Python logging | Immutable audit table |
+| 12 | Contact Resolution | Fresh lookup at escalation | Contact change detection |
+| 13 | Employee Directory | **Azure REST API + `.manager`** ✅ KEEP | Advanced caching, preferences |
+| 14 | Data Source Types | **PostgreSQL only** | MySQL, REST API, HTTP, etc. |
+
+**Bold** = Simplified for MVP
+✅ = Kept in MVP (complexity manageable)
 
 ### Key Technical Choices
 
@@ -1108,17 +1299,31 @@ EMPLOYEE_API_CLIENT_SECRET_PARAM=/echo/integrations/employee-api/client-secret
 - **Framework:** FastAPI (async)
 - **Database:** PostgreSQL with SQLAlchemy 2.0 (async)
 - **Scheduler:** AWS EventBridge (all environments)
-- **Notifications:** Email via AWS SES (MVP)
+- **Notifications:** Email via AWS SES (direct implementation)
 - **Templates:** Jinja2 (filesystem)
 - **Package Manager:** uv
 - **Code Quality:** ruff, mypy, pytest
+- **Deployment:** Single ECS service (API + background jobs)
+
+### Simplified MVP Timeline
+
+**Original estimate:** 12-14 weeks
+**Simplified estimate:** **8-10 weeks** (~30-40% faster)
+
+**Key Simplifications:**
+1. Require `last_verified` timestamp (no hash logic) - **saves 1 week**
+2. Skip contact-less records (no owner notification) - **saves 1 day**
+3. Email-only (no channel abstraction) - **saves 3-5 days**
+4. Background jobs (no per-escalation containers) - **saves 1 week**
+5. PostgreSQL only (no multiple connectors) - **saves 3-5 days**
 
 ### Ready for Implementation
 
-All critical decisions are finalized. The design is:
-- ✅ **Simple** - MVP focuses on core features
-- ✅ **Extensible** - Architecture supports future enhancements
-- ✅ **Practical** - Leverages existing tools and patterns
-- ✅ **Achievable** - 12-14 week timeline for MVP
+All MVP decisions finalized. The simplified design is:
+- ✅ **Simple** - Core features only, deferred complexity
+- ✅ **Extensible** - Clean upgrade path to full vision
+- ✅ **Practical** - Proven tools and patterns
+- ✅ **Achievable** - **8-10 week timeline for MVP**
+- ✅ **Valuable** - Employee directory + manager escalations included
 
 **Next Step:** Begin Phase 1 implementation (Foundation)
