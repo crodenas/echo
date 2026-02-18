@@ -1298,6 +1298,79 @@ class PostgreSQLDataSource:
 
 ---
 
+### Decision #16: Notification Delivery Pattern
+
+**Question:** Should workers send notifications directly, or write to an outbox for a separate dispatcher to send?
+
+**Selected Option (MVP):** Direct send from workers
+
+**Date:** 2026-02-18
+
+**Implementation (MVP):**
+```
+Worker (Campaign A, Escalation 1)
+  → Groups unverified records by recipient
+  → Sends one email per recipient containing all their records
+  → alice@company.com receives: [service-1, service-2]
+
+Worker (Campaign B, Escalation 1, same day)
+  → alice@company.com receives: [database-7]
+```
+Alice gets two separate emails if she appears in two campaigns on the same day.
+
+**Deferred Option — Outbox Pattern (MVP+):**
+```
+Worker (Campaign A) → writes to outbox: {recipient: alice, records: [...], campaign: A}
+Worker (Campaign B) → writes to outbox: {recipient: alice, records: [...], campaign: B}
+
+Dispatcher (runs daily at 9am)
+  → Reads outbox, groups by recipient
+  → alice receives ONE email across all campaigns: [service-1, service-2, database-7]
+```
+
+**Outbox Schema (when implemented):**
+```sql
+CREATE TABLE notification_outbox (
+    id          UUID PRIMARY KEY,
+    recipient   VARCHAR(255) NOT NULL,   -- email address
+    campaign_id UUID REFERENCES campaigns(id),
+    cycle_id    UUID REFERENCES cycles(id),
+    escalation_level INT NOT NULL,
+    records     JSONB NOT NULL,          -- records needing verification
+    created_at  TIMESTAMP NOT NULL,
+    dispatched_at TIMESTAMP              -- NULL = pending
+);
+```
+
+**Open Question for MVP+ — Mixed Record Types in Digest:**
+
+When the outbox aggregates across campaigns, a recipient may have records from different campaigns with different schemas and different templates:
+
+- Campaign A records: `{service_id, tech_lead, environment}`
+- Campaign B records: `{db_instance_id, dba_owner, criticality}`
+
+Options when this happens:
+- **Option A: Per-campaign sections** — One email with separate sections per campaign, each rendered with its own template. Clean but complex to compose.
+- **Option B: Generic digest template** — Outbox dispatcher uses a single generic template that renders any record type. Loses campaign-specific formatting.
+- **Option C: Per-campaign emails, same dispatch window** — Dispatcher still sends one email per campaign per recipient, but batches sends within a time window to avoid immediate back-to-back emails.
+
+Option C is likely the simplest path — it retains per-campaign templates and avoids the mixed-type problem entirely, while still smoothing out notification timing.
+
+**Rationale for deferring:**
+- Direct send is sufficient to prove value for MVP
+- Outbox adds meaningful complexity (dispatcher service, outbox table, dispatch scheduling)
+- Mixed record type problem needs more thought before committing to a design
+- Single-campaign deployments won't benefit from cross-campaign grouping
+
+**Deferred to MVP+:**
+- Outbox table and dispatcher service
+- Cross-campaign digest emails
+- User-level daily digest preference
+- Configurable dispatch time (e.g. send at 9am recipient's timezone)
+- Resolution of mixed record type template strategy
+
+---
+
 ### Decision #15: Terminology — Campaign Execution Instance
 
 **Question:** What do we call a single execution instance of a campaign?
@@ -1342,6 +1415,7 @@ class PostgreSQLDataSource:
 | 13 | Employee Directory | **Azure REST API + `.manager`** ✅ KEEP | Advanced caching, preferences |
 | 14 | Data Source Types | **PostgreSQL only** | MySQL, REST API, HTTP, etc. |
 | 15 | Terminology | **"Cycle" (not "wave")** | — |
+| 16 | Notification Delivery | **Direct send from workers** | Outbox pattern, cross-campaign digest, mixed record types |
 
 **Bold** = Simplified for MVP
 ✅ = Kept in MVP (complexity manageable)
