@@ -1,6 +1,6 @@
 # ECHO Product Roadmap
 
-**Last Updated:** 2026-02-15
+**Last Updated:** 2026-02-18
 **Status:** MVP in active development
 
 ---
@@ -43,12 +43,15 @@
 
 ### Authentication & Security
 - ✅ **Azure AD OAuth2** - User authentication
+- ✅ **Role-Based Access Control** - Admin, Campaign Owner, Viewer roles via Azure AD App Roles
 - ✅ **Campaign Ownership** - Users can only edit their own campaigns
 - ✅ **Secure Credentials** - Connection strings in Parameter Store
 
 ### Execution & Infrastructure
-- ✅ **Single ECS Service** - API + background jobs in one service
-- ✅ **FastAPI BackgroundTasks** - Async escalation execution
+- ✅ **Containerized API Service** - Long-running ECS service for campaign management
+- ✅ **Per-Escalation ECS Fargate Tasks** - Isolated ephemeral worker per escalation, launched directly by EventBridge
+- ✅ **Lazy Scheduling** - Each worker schedules the next escalation only if unverified records remain
+- ✅ **Direct Notification Send** - Workers send notifications immediately (grouped by recipient)
 - ✅ **PostgreSQL Database** - Campaign, cycle, notification storage
 - ✅ **CloudWatch Logging** - Standard Python logging
 
@@ -224,27 +227,29 @@ class MySQLDataSource:
 
 ---
 
-### Medium #4: Role-Based Access Control
-**Effort:** 2 weeks
-**Value:** Medium - Better security for multi-team use
+### Medium #4: Notification Outbox (Cross-Campaign Digest)
+**Effort:** 2-3 weeks
+**Value:** Medium-High - Reduces notification fatigue for users in multiple campaigns
+
+**Context:** MVP workers send notifications directly — a user in 3 campaigns may get 3 separate emails on the same day. The outbox pattern lifts delivery to a higher level so sends can be batched per recipient per day.
 
 **Features:**
-- **Admin role** - Manage all campaigns, delete any campaign
-- **Campaign Owner role** - Create and manage own campaigns
-- **Viewer role** - Read-only access to campaigns and cycles
-- App Roles in Azure AD
-- Entra group assignments
+- `notification_outbox` table — workers write notification intents instead of sending directly
+- Dispatcher service — reads outbox, groups by recipient, sends consolidated emails
+- Configurable dispatch window (e.g. daily at 9am)
+- Per-campaign emails within dispatch window (avoids mixed record type problem — see Decision #16)
 
-**Example:**
-```python
-@app.delete("/campaigns/{id}")
-async def delete_campaign(
-    campaign_id: str,
-    user = Depends(require_role("echo.admin"))
-):
-    # Only admins can delete campaigns
-    ...
+**Architecture change:**
 ```
+MVP:    Worker → send email immediately
+MVP+:   Worker → write to outbox
+        Dispatcher (9am daily) → read outbox → send grouped emails
+```
+
+**Why Defer from MVP:**
+- Direct send is sufficient for single-campaign users
+- Outbox adds dispatcher service and outbox table
+- Mixed record type template strategy needs more thought
 
 ---
 
@@ -323,17 +328,15 @@ WHERE id != :platform_campaign_id  -- Exclude self
 
 ### Isolation & Reliability
 
-**Per-Escalation ECS Tasks** (4 weeks)
-- Each escalation runs in isolated container
-- Resource limits per task
-- Failure isolation (one campaign doesn't affect others)
-- Dead letter queue for permanent failures
-- Advanced retry policies
+**Stuck Cycle Recovery Job** (1 week)
+- Detect cycles where a worker crashed before scheduling the next escalation
+- Background health-check job scans for cycles with `current_escalation_level` not advancing
+- Auto-reschedule or alert campaign owner
 
-**Why Deferred:**
-- Background jobs sufficient for MVP
-- Adds infrastructure complexity
-- Better isolation but higher operational cost
+**Advanced Retry Policies** (1 week)
+- Per-campaign retry configuration
+- Exponential backoff strategies
+- Dead letter queue alerting and reprocessing UI
 
 ---
 
@@ -440,10 +443,10 @@ WHERE id != :platform_campaign_id  -- Exclude self
 
 | Phase | Timeline | Key Features | Total Effort |
 |-------|----------|--------------|--------------|
-| **MVP** | Weeks 1-10 | Core functionality, email, employee directory | 8-10 weeks |
+| **MVP** | Weeks 1-10 | Core functionality, email, employee directory, RBAC, per-escalation ECS workers | 8-10 weeks |
 | **MVP+ Quick Wins** | Weeks 11-14 | Hash verification, MySQL, REST API, orphan notifications, simple UI | ~4 weeks |
-| **MVP+ Medium** | Weeks 15-24 | Teams/Slack, RBAC, caching, verification portal | ~10 weeks |
-| **Future** | TBD | ECS isolation, multi-tenancy, advanced features | Ongoing |
+| **MVP+ Medium** | Weeks 15-24 | Teams/Slack, notification outbox/digest, caching, verification portal | ~10 weeks |
+| **Future** | TBD | Multi-tenancy, advanced features, stuck cycle recovery | Ongoing |
 
 ---
 
@@ -519,7 +522,7 @@ When deciding what to build next, consider:
 
 1. **Which quick win first?** Hash verification or MySQL support?
 2. **When to add UI?** Before or after Teams/Slack channels?
-3. **RBAC timing?** Essential for MVP+ or can wait?
+3. **Outbox template strategy?** Per-campaign emails in dispatch window (Option C) vs true cross-campaign digest — confirm before implementing Medium #4.
 4. **Verification Portal Kit?** Build in-house or let teams customize?
 5. **Multi-tenancy priority?** When do we actually need it?
 

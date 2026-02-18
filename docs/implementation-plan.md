@@ -22,9 +22,7 @@ This document outlines the technical approach and development roadmap for ECHO.
 
 ### Notification Channels
 - **boto3** - AWS SES for email
-- **aiohttp** - Async HTTP client for webhooks
-- **Microsoft Graph SDK** - Teams integration
-- **Slack SDK** - Slack integration
+- **aiohttp** - Async HTTP client for webhooks (MVP+: Teams, Slack)
 
 ### Template Engine
 - **Jinja2** - HTML and text template rendering
@@ -92,21 +90,16 @@ echo/
 │   │   │   └── postgresql.py         # PostgreSQL data source (MVP)
 │   │   │   # Future: api.py, mysql.py, http.py
 │   │   ├── notifications/
-│   │   │   ├── base.py               # NotificationChannel protocol
-│   │   │   ├── email.py              # Email channel (SES)
-│   │   │   ├── teams.py              # Microsoft Teams
-│   │   │   └── slack.py              # Slack
+│   │   │   └── email.py              # Email channel (SES) - MVP only
+│   │   │   # Future: base.py (protocol), teams.py, slack.py
 │   │   └── schedulers/
 │   │       ├── base.py               # Scheduler protocol
 │   │       └── eventbridge.py        # AWS EventBridge implementation
 │   ├── templates/                    # Jinja2 templates
-│   │   ├── email/
-│   │   │   ├── default.html          # Default email template
-│   │   │   └── default.txt           # Plain text fallback
-│   │   ├── teams/
-│   │   │   └── default.json          # Teams card template
-│   │   └── slack/
-│   │       └── default.json          # Slack block template
+│   │   └── email/
+│   │       ├── default.html          # Default email template
+│   │       └── default.txt           # Plain text fallback
+│   │       # Future: ../teams/, ../slack/
 │   ├── utils/                        # Utility modules
 │   │   ├── verification.py           # Verification detection logic
 │   │   ├── grouping.py               # Notification grouping
@@ -454,30 +447,37 @@ Triggers: API Service POST /internal/start-cycle/{campaign_id}
   ↓
 API Service (quick):
   1. Create Cycle record in DB
-  2. Create EventBridge schedules (one-time):
-     - cycle-123-esc-1 → ECS Task (immediate)
-     - cycle-123-esc-2 → ECS Task (+7 days)
-     - cycle-123-esc-3 → ECS Task (+14 days)
+  2. Create escalation-0 schedule only (lazy — not all upfront)
   3. Return success
   ↓
 (API service continues serving other requests)
 
-...7 days later...
-
-EventBridge Escalation Schedule Triggers
+EventBridge Escalation-0 Schedule (one-time, immediate)
   ↓
-Launches: NEW Fargate Task
+Launches: NEW Fargate Task directly
   ↓
 Worker Container:
   1. Load cycle + campaign from DB
-  2. Query data source
-  3. Filter records by mode
-  4. Check verification status
-  5. Send notifications
-  6. Update cycle stats
-  7. Terminate
+  2. Query data source (fresh lookup)
+  3. Check verification status at runtime
+  4. If unverified_count == 0: mark cycle complete, terminate
+  5. Send notifications grouped by recipient
+  6. If next escalation rule exists: create escalation-1 schedule
+  7. Update cycle stats
+  8. Terminate
   ↓
 Container destroyed (logs in CloudWatch)
+
+...N days later (if records still unverified)...
+
+EventBridge Escalation-1 Schedule (one-time)
+  ↓
+Launches: NEW Fargate Task directly
+  ↓
+Worker Container:
+  → Same pattern, creates escalation-2 schedule if needed
+  ↓
+Container destroyed
 ```
 
 ### Isolation Benefits
@@ -1006,12 +1006,12 @@ class CampaignResponse(BaseModel):
 - [ ] Notification queue builder
 
 ### Phase 4: Notification System (2 weeks)
-- [ ] Email channel (SES)
-- [ ] Template rendering
-- [ ] Notification delivery
-- [ ] Retry logic
+- [ ] Email channel (SES) — direct implementation, no channel abstraction
+- [ ] Jinja2 template rendering
+- [ ] Recipient grouping (one email per recipient per escalation)
+- [ ] Notification delivery and retry logic
 - [ ] Delivery tracking
-- [ ] Additional channels (Teams, Slack)
+- [ ] Worker lazy scheduling (create next escalation schedule if unverified remain)
 
 ### Phase 5: Production Readiness (2 weeks)
 - [ ] AWS EventBridge integration
@@ -1220,12 +1220,9 @@ def execute_escalation(cycle_id: str, escalation_level: int):
         raise  # Will trigger retry
     
     try:
-        # 3. Apply mode filter
-        filtered_records = apply_mode_filter(all_records, campaign.mode, campaign.mode_config)
-        
-        # 4. Check verification status
-        unverified_records = [r for r in filtered_records if not is_verified(r, cycle.start_date)]
-        
+        # 3. Check verification status
+        unverified_records = [r for r in all_records if not is_verified(r, cycle.start_date)]
+
     except Exception as e:
         logger.error(f"Processing error: {e}")
         raise
@@ -1606,86 +1603,34 @@ CREATE INDEX idx_verifications_record ON verifications(record_id);
 CREATE INDEX idx_verifications_verified_at ON verifications(verified_at);
 ```
 
-### Verification Detection (Updated)
+### Verification Detection (MVP)
+
+Data sources must include a `last_verified` timestamp field. Verification is a single check (Decision #1):
 
 ```python
-def is_verified(record, cycle_start_date):
+def is_verified(record: dict, cycle_start_date: datetime) -> bool:
     """Check if record was verified since cycle started.
 
-    Checks multiple sources (in order):
-    1. Explicit verification in ECHO
-    2. Timestamp in source data (last_verified, last_updated)
-    3. Hash change detection
+    MVP: single timestamp check only.
+    Data source must include 'last_verified' field — validated at campaign creation.
     """
+    last_verified = record.get("last_verified")
 
-    # Tier 1: Explicit verification via ECHO API
-    verification = get_verification(
-        record_id=record.object_id,
-        since=cycle_start_date
-    )
-    if verification:
-        return True
+    if not last_verified:
+        return False  # Never verified
 
-    # Tier 2: Timestamp in source data
-    if record.source_data.get("last_verified"):
-        last_verified = parse_datetime(record.source_data["last_verified"])
-        if last_verified >= cycle_start_date:
-            return True
-
-    if record.source_data.get("last_updated"):
-        last_updated = parse_datetime(record.source_data["last_updated"])
-        if last_updated >= cycle_start_date:
-            return True
-
-    # Tier 3: Hash change (any field changed = verified)
-    if record_hash_changed(record, cycle_start_date):
-        return True
-
-    return False
+    return parse_datetime(last_verified) >= cycle_start_date
 ```
+
+**Deferred to MVP+:**
+- Hash-based verification (for data sources without timestamps)
+- Explicit verification via ECHO API (`POST /api/cycles/{id}/records/{id}/verify`)
 
 ### API Endpoints
 
-```python
-# Verify a record
-@app.post("/api/cycles/{cycle_id}/records/{record_id}/verify")
-async def verify_record(
-    cycle_id: str,
-    record_id: str,
-    verification: VerificationCreate,
-    user = Depends(get_current_user)
-):
-    """Mark record as verified."""
+MVP verification is handled entirely via `last_verified` timestamp in the source system — no explicit verification API needed.
 
-    result = await verification_service.create_verification(
-        cycle_id=cycle_id,
-        record_id=record_id,
-        verified_by=user["email"],
-        verification_type=verification.type,
-        verification_source=verification.source,
-        comment=verification.comment
-    )
-
-    return result
-
-# Get verification page (simple UI)
-@app.get("/verify/{cycle_id}/{record_id}")
-async def verification_page(cycle_id: str, record_id: str):
-    """Show simple verification page."""
-
-    cycle = await get_cycle(cycle_id)
-    campaign = await get_campaign(cycle.campaign_id)
-
-    # Fetch record from data source
-    data_source = create_data_source(campaign.data_source)
-    record = await data_source.get_record(record_id)
-
-    return templates.TemplateResponse("verification/simple.html", {
-        "cycle": cycle,
-        "campaign": campaign,
-        "record": record
-    })
-```
+**Deferred to MVP+:** `POST /api/cycles/{cycle_id}/records/{record_id}/verify` — explicit in-ECHO verification for data sources that cannot update a timestamp field.
 
 ## ECHO Verification Portal Kit (Separate Product)
 
