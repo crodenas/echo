@@ -37,7 +37,7 @@ This document describes the operational workflows and processes in ECHO.
 **Automatic Process:**
 1. EventBridge triggers campaign schedule
 2. ECHO creates new cycle instance
-3. Cycle executes (see "Wave Execution" below)
+3. Cycle executes (see "Cycle Execution" below)
 4. Repeat on schedule indefinitely
 
 **Monitoring:**
@@ -85,7 +85,7 @@ This document describes the operational workflows and processes in ECHO.
 4. Archive campaign data
 5. Delete campaign record (or mark as deleted)
 
-## Wave Execution Workflow
+## Cycle Execution Workflow
 
 ### Phase 1: Initialization
 

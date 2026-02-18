@@ -155,7 +155,7 @@ HTTP Endpoint:
 
 ## Data Flow
 
-### Wave Execution Flow
+### Cycle Execution Flow
 
 ```
 1. CAMPAIGN SCHEDULE TRIGGERS

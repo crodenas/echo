@@ -157,7 +157,7 @@ The ECHO system as designed is achievable with the proposed technology stack and
 
 ---
 
-### 6. Wave Execution ✅ **Low-Moderate Risk**
+### 6. Cycle Execution ✅ **Low-Moderate Risk**
 
 **Requirements:**
 - Create cycle on schedule trigger
@@ -218,7 +218,7 @@ The ECHO system as designed is achievable with the proposed technology stack and
 - Transaction locks (mitigate with row-level locking)
 
 **Recommendations:**
-- Index foreign keys (campaign_id, wave_id)
+- Index foreign keys (campaign_id, cycle_id)
 - Index frequently queried fields (status, object_id)
 - Partition large tables by date (cycles, notifications)
 - Use connection pooling (SQLAlchemy built-in)

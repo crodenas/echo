@@ -324,71 +324,100 @@ src/templates/email/
 
 **Question:** How should escalations be executed? Isolated containers or in-process jobs?
 
-**Selected Option (MVP):** Background jobs in API service (simplified)
+**Selected Option (MVP):** Per-escalation ECS Fargate tasks, launched directly by EventBridge
 
-**ADDED 2026-02-15:** Simplified execution model for MVP.
-
-**Implementation:**
-
-**Single ECS Service (Runs everything):**
-```python
-# src/api/routes/internal.py
-@router.post("/internal/execute-escalation/{cycle_id}/{level}")
-async def execute_escalation_webhook(
-    cycle_id: str,
-    level: int,
-    background_tasks: BackgroundTasks
-):
-    """
-    EventBridge triggers this endpoint.
-    Queue as background task and return immediately.
-    """
-    background_tasks.add_task(
-        cycle_service.execute_escalation,
-        cycle_id,
-        level
-    )
-    return {"status": "queued"}
-
-# Escalation runs as async task within the API service
-async def execute_escalation(cycle_id: str, level: int):
-    # Fetch data, send notifications, etc.
-    ...
-```
+**UPDATED 2026-02-18:** Revised from background jobs to isolated Fargate tasks. Workers use a lazy scheduling pattern — each worker creates the next escalation schedule only if unverified records remain.
 
 **Architecture:**
 ```
-EventBridge Schedule
+EventBridge (campaign schedule, recurring)
+  ↓ POST /internal/start-cycle/{campaign_id}
+Echo API (containerized ECS service, always running)
+  → Creates Cycle record in DB
+  → Creates escalation-0 schedule only (lazy — not all upfront)
   ↓
-POST /internal/execute-escalation/{cycle_id}/{level}
+EventBridge (escalation-0 schedule, one-time)
+  ↓ Launches ECS Fargate task directly
+Worker Container (ephemeral)
+  → Queries data source (fresh lookup)
+  → Checks verification status at runtime
+  → Sends notifications
+  → If unverified_count > 0: creates escalation-1 schedule
+  → Terminates
   ↓
-API Service (FastAPI BackgroundTasks)
-  ↓
-Execute escalation asynchronously
-  ↓
-Return 200 OK (EventBridge happy)
+[N days later — if records still unverified]
+EventBridge (escalation-1 schedule, one-time)
+  ↓ Launches new ECS Fargate task directly
+Worker Container (ephemeral)
+  → ... same pattern, creates escalation-2 schedule if needed
+  → Terminates
+```
+
+**Lazy Scheduling Pattern:**
+```python
+# src/workers/cycle_worker.py
+
+async def execute_escalation(cycle_id: str, level: int):
+    """Execute escalation in isolated container."""
+
+    cycle = await get_cycle(cycle_id)
+    campaign = await get_campaign(cycle.campaign_id)
+
+    # Fresh lookup from data source at runtime
+    all_records = await fetch_from_data_source(campaign.data_source)
+
+    # Evaluate verification status at runtime
+    unverified = [r for r in all_records if not is_verified(r, cycle.start_date)]
+
+    if not unverified:
+        # Everything verified — cycle complete
+        await mark_cycle_complete(cycle_id)
+        logger.info(f"Cycle {cycle_id} complete — all records verified")
+        return
+
+    # Send notifications for this escalation level
+    await send_notifications(unverified, campaign, cycle, level)
+
+    # Schedule next escalation if one exists
+    next_level = level + 1
+    next_rule = get_escalation_rule(campaign, next_level)
+
+    if next_rule:
+        # Deterministic schedule name (idempotent on retry)
+        schedule_name = f"cycle-{cycle_id}-esc-{next_level}"
+        trigger_at = cycle.start_date + timedelta(days=next_rule.delay_days)
+
+        await create_escalation_schedule(
+            name=schedule_name,
+            trigger_at=trigger_at,
+            cycle_id=cycle_id,
+            level=next_level
+        )
+        await update_cycle(cycle_id, current_escalation_level=next_level)
+    else:
+        # No more escalations — cycle ends
+        await mark_cycle_complete(cycle_id)
 ```
 
 **Rationale:**
-- **Much simpler infrastructure** - Single ECS service deployment
-- **Easier local development** - Just run FastAPI dev server
-- **Faster to implement** - No container orchestration needed (~1 week saved)
-- **Good enough for MVP** - FastAPI BackgroundTasks handle concurrency
-- **Still isolated** - Separate async tasks don't block main API
-- **Easier debugging** - All logs in one place
+- **Campaign isolation** - Failures in one campaign's worker don't affect others
+- **Lazy scheduling** - No unnecessary worker launches if records verified early
+- **Clean cancellation** - Cancelling a cycle only requires deleting one pending schedule
+- **Natural termination** - Cycle completes as soon as all records are verified
+- **Idempotent schedule names** - Safe to retry if worker crashes before creating next schedule
+- **EventBridge retries** - Failed task launches retry automatically (up to 2 attempts)
 
 **Implications:**
-- All escalations run in same process (but async)
-- Need reasonable memory limits (handle multiple concurrent escalations)
-- No per-escalation resource limits
-- Simpler monitoring (one service to watch)
+- Two ECS components: long-running API service + ephemeral worker task definition
+- Workers receive `CYCLE_ID` and `ESCALATION_LEVEL` as environment variable overrides
+- `current_escalation_level` field needed on Cycle record (for monitoring and recovery)
+- EventBridge IAM role requires `ecs:RunTask` permission on worker task definition
+- DLQ on EventBridge schedule captures permanently failed launches
 
 **Deferred to MVP+:**
-- **Per-escalation ECS tasks** - Isolated containers for each escalation
-- Resource limits per escalation
-- Dead letter queue for failed escalations
-- Advanced retry strategies
-- Separate worker service
+- Recovery job to detect stuck cycles (worker crashed before scheduling next)
+- Per-escalation resource limit overrides
+- Advanced retry strategies beyond EventBridge defaults
 
 ---
 
@@ -611,8 +640,8 @@ html = template.render(
 
 # SVT (Standard Verification) - Regular intervals
 {
-  "campaign_schedule": "cron(0 0 1 * ? *)",  # Monthly (outer: start new wave)
-  "escalation_rules": [                      # Inner: escalations within wave
+  "campaign_schedule": "cron(0 0 1 * ? *)",  # Monthly (outer: start new cycle)
+  "escalation_rules": [                      # Inner: escalations within cycle
     {"level": 1, "delay_days": 0},
     {"level": 2, "delay_days": 7},
     {"level": 3, "delay_days": 14}
@@ -719,7 +748,7 @@ Each app registration defines the following app roles:
 |------|-------|-------------|-------------|
 | **ECHO Admin** | `echo.admin` | Full system access, manage all campaigns | Entra group: `ECHO-Admins` |
 | **Campaign Owner** | `echo.campaign_owner` | Create and manage own campaigns | Entra group: `ECHO-Users` |
-| **Viewer** | `echo.viewer` | Read-only access to campaigns and waves | Entra group: `ECHO-Viewers` |
+| **Viewer** | `echo.viewer` | Read-only access to campaigns and cycles | Entra group: `ECHO-Viewers` |
 
 **App Role Assignment:**
 ```
@@ -877,20 +906,20 @@ logger.error(f"Scheduler error: {error}")
 
 ### Decision #12: Contact Resolution Timing
 
-**Question:** When should contacts be resolved - at wave start (snapshot) or at each escalation (fresh lookup)?
+**Question:** When should contacts be resolved - at cycle start (snapshot) or at each escalation (fresh lookup)?
 
 **Selected Option:** Fresh lookup at each escalation
 
 **Implementation:**
 ```python
-def execute_escalation(wave_id: str, escalation_level: int):
+def execute_escalation(cycle_id: str, escalation_level: int):
     """Execute escalation with fresh data from source."""
 
     # Re-query data source at each escalation
     source_records = fetch_from_data_source(campaign.data_source)
 
     # Check verification status (might be verified now)
-    unverified = [r for r in source_records if not is_verified(r, wave.start_date)]
+    unverified = [r for r in source_records if not is_verified(r, cycle.start_date)]
 
     # Resolve recipients using CURRENT contacts from source
     for record in unverified:
@@ -906,17 +935,17 @@ def execute_escalation(wave_id: str, escalation_level: int):
 **Rationale:**
 - **Always accurate** - Notifications go to current responsible parties
 - **Handles personnel changes** - If tech lead changes from Bob to Alice, Alice gets notified (not Bob)
-- **Auto-stops on verification** - If verified mid-wave, subsequent escalations detect it
+- **Auto-stops on verification** - If verified mid-cycle, subsequent escalations detect it
 - **Simpler data model** - No need to store enriched contact snapshots
 - **Practical** - Can't notify departed employees anyway
 
-**Known Behavior: Contact Changes Mid-Wave**
+**Known Behavior: Contact Changes Mid-Cycle**
 
-If contacts change during a wave, the new contact inherits the current escalation level:
+If contacts change during a cycle, the new contact inherits the current escalation level:
 
 **Example:**
 ```
-Day 0 (Wave Start):
+Day 0 (Cycle Start):
   - Service-123 tech_lead = Bob
 
 Day 0 (Escalation 1): ["contact1"]
@@ -946,8 +975,8 @@ Day 7 (Escalation 2): ["contact1", "contact1.manager"]
 
 | Approach | Pro | Con | Decision |
 |----------|-----|-----|----------|
-| Snapshot at wave start | Original owner accountable | May notify departed/wrong people | ❌ Rejected |
-| Track changes, reset escalation | New owner starts fresh | Wave may never complete; complex | ❌ Too complex |
+| Snapshot at cycle start | Original owner accountable | May notify departed/wrong people | ❌ Rejected |
+| Track changes, reset escalation | New owner starts fresh | Cycle may never complete; complex | ❌ Too complex |
 | Notify old + new contacts | No one escapes | Spammy; confusing | ❌ Poor UX |
 | **Fresh lookup (current)** | **Always accurate; simple** | **New owner inherits escalation** | ✅ **MVP** |
 
@@ -1269,9 +1298,32 @@ class PostgreSQLDataSource:
 
 ---
 
+### Decision #15: Terminology — Campaign Execution Instance
+
+**Question:** What do we call a single execution instance of a campaign?
+
+**Selected Option:** Cycle
+
+**Date:** 2026-02-18
+
+**Rationale:**
+- "Wave" was used informally in early design discussions but never formally adopted
+- "Cycle" is more precise — it reflects the recurring, scheduled nature of campaign execution
+- "Cycle" is already the term used in `01-core-concepts.md` and throughout the data model
+- Avoids confusion with "wave" as used in other contexts (e.g., deployment waves, marketing waves)
+
+**Implications:**
+- All documentation, code, and API endpoints use "cycle" (not "wave")
+- Database table: `cycles`
+- API routes: `/api/cycles`, `/internal/start-cycle/{campaign_id}`
+- Worker env var: `CYCLE_ID`
+- Any prior references to "wave" in docs or code are considered errors to be corrected
+
+---
+
 ## Summary
 
-### All Decisions at a Glance (UPDATED 2026-02-15)
+### All Decisions at a Glance (UPDATED 2026-02-18)
 
 | # | Question | MVP Decision | Deferred |
 |---|----------|--------------|----------|
@@ -1279,7 +1331,7 @@ class PostgreSQLDataSource:
 | 2 | Contact-less Records | **Skip and log (simplified)** | Owner notifications, tracking history |
 | 3 | Cycle Overlap | Validation + Skip | Auto-adjustment, advanced handling |
 | 4 | Multi-Channel | **Email only, direct implementation** | Protocol abstraction, Teams, Slack |
-| 5 | Execution Model | **Background jobs in API service** | Per-escalation ECS tasks, DLQ |
+| 5 | Execution Model | **Per-escalation ECS Fargate tasks, lazy scheduling** | Recovery job for stuck cycles |
 | 6 | Scheduler | EventBridge (all environments) | Cross-region, advanced retry |
 | 7 | Database | PostgreSQL | Partitioning, read replicas |
 | 8 | Template System | Jinja2 files | Database templates, editor UI |
@@ -1289,6 +1341,7 @@ class PostgreSQLDataSource:
 | 12 | Contact Resolution | Fresh lookup at escalation | Contact change detection |
 | 13 | Employee Directory | **Azure REST API + `.manager`** ✅ KEEP | Advanced caching, preferences |
 | 14 | Data Source Types | **PostgreSQL only** | MySQL, REST API, HTTP, etc. |
+| 15 | Terminology | **"Cycle" (not "wave")** | — |
 
 **Bold** = Simplified for MVP
 ✅ = Kept in MVP (complexity manageable)

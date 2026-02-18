@@ -64,7 +64,7 @@ The **ECHO Verification Portal Kit** is a standalone template that teams can dep
 1. User receives notification from ECHO
    ↓
 2. Clicks verification link
-   → https://service-portal.company.com/verify?id=service-123&wave=wave-456
+   → https://service-portal.company.com/verify?id=service-123&cycle=cycle-456
    ↓
 3. Portal loads record from data source
    ↓
@@ -75,7 +75,7 @@ The **ECHO Verification Portal Kit** is a standalone template that teams can dep
 6. Portal validates and saves to data source
    ↓
 7. Portal calls ECHO verification API
-   POST /api/waves/wave-456/records/service-123/verify
+   POST /api/cycles/cycle-456/records/service-123/verify
    ↓
 8. ECHO marks record as verified
    ↓
@@ -165,7 +165,7 @@ Update your ECHO campaign to link to the portal:
 ```python
 {
   "name": "Service Verification",
-  "verification_url_template": "https://service-portal.company.com/verify?id={object_id}&wave={wave_id}"
+  "verification_url_template": "https://service-portal.company.com/verify?id={object_id}&cycle={cycle_id}"
 }
 ```
 
@@ -309,7 +309,7 @@ Portal calls ECHO's verification API after user saves:
 ```python
 # After saving to data source
 response = requests.post(
-    f"{ECHO_API_URL}/api/waves/{wave_id}/records/{record_id}/verify",
+    f"{ECHO_API_URL}/api/cycles/{cycle_id}/records/{record_id}/verify",
     headers={"Authorization": f"Bearer {token}"},
     json={
         "verified_by": user.email,
@@ -413,7 +413,7 @@ Portal uses Azure AD (same as ECHO):
 @app.get("/verify")
 async def verify_page(
     id: str,
-    wave: str,
+    cycle: str,
     user = Depends(get_current_user)  # Azure AD
 ):
     # Only authenticated users can access
@@ -458,7 +458,7 @@ Portal tracks all changes:
 CREATE TABLE portal_audit_log (
   id UUID PRIMARY KEY,
   record_id VARCHAR(255),
-  wave_id VARCHAR(255),
+  cycle_id VARCHAR(255),
 
   -- Who and when
   updated_by VARCHAR(255),
@@ -558,7 +558,7 @@ async def submit_verification(updates, user):
     else:
         # Apply changes directly
         save_to_source(record.id, updates)
-        verify_in_echo(record.id, updates.wave_id, user.email)
+        verify_in_echo(record.id, updates.cycle_id, user.email)
 
         return {"status": "verified"}
 ```
@@ -592,7 +592,7 @@ portal_errors_total 12
 # Structured logging
 logger.info("Verification completed", extra={
     "record_id": record.id,
-    "wave_id": wave.id,
+    "cycle_id": cycle.id,
     "user": user.email,
     "fields_updated": list(updates.keys())
 })

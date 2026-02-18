@@ -444,7 +444,7 @@ Partition large tables by date for performance:
 
 ```sql
 -- Partition cycles by created_at (monthly)
-CREATE TABLE waves_2024_01 PARTITION OF cycles
+CREATE TABLE cycles_2024_01 PARTITION OF cycles
   FOR VALUES FROM ('2024-01-01') TO ('2024-02-01');
 
 -- Partition notifications by created_at (weekly)

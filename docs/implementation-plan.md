@@ -416,8 +416,8 @@ async def test_create_campaign_success(mock_db_session, sample_campaign_data):
 ### Containerized Execution Model
 
 **Design Principle: Isolation**
-- Each wave escalation runs in its own container (on-demand)
-- Failures in one campaign/wave do not impact others
+- Each cycle escalation runs in its own container (on-demand)
+- Failures in one campaign/cycle do not impact others
 - Bad data sources, template errors, or crashes are isolated
 - Clear failure boundaries and independent retry logic
 
@@ -430,12 +430,12 @@ ECS Service (always running)
 - Campaign CRUD operations
 - User interface
 - Creates EventBridge schedules
-- Handles: /api/campaigns, /internal/start-wave
+- Handles: /api/campaigns, /internal/start-cycle
 - Instances: 1-3 (auto-scaling)
 - Resources: 256 CPU, 512 MB RAM
 ```
 
-**Component 2: On-Demand Wave Workers**
+**Component 2: On-Demand Cycle Workers**
 ```
 ECS Fargate Tasks (ephemeral)
 - Triggered by: EventBridge schedules
@@ -445,19 +445,19 @@ ECS Fargate Tasks (ephemeral)
 - Resources: 1024 CPU, 2048 MB RAM
 ```
 
-### Wave Execution Flow
+### Cycle Execution Flow
 
 ```
 EventBridge Campaign Schedule (Recurring)
   ↓
-Triggers: API Service POST /internal/start-wave/{campaign_id}
+Triggers: API Service POST /internal/start-cycle/{campaign_id}
   ↓
 API Service (quick):
-  1. Create Wave record in DB
+  1. Create Cycle record in DB
   2. Create EventBridge schedules (one-time):
-     - wave-123-esc-1 → ECS Task (immediate)
-     - wave-123-esc-2 → ECS Task (+7 days)
-     - wave-123-esc-3 → ECS Task (+14 days)
+     - cycle-123-esc-1 → ECS Task (immediate)
+     - cycle-123-esc-2 → ECS Task (+7 days)
+     - cycle-123-esc-3 → ECS Task (+14 days)
   3. Return success
   ↓
 (API service continues serving other requests)
@@ -469,12 +469,12 @@ EventBridge Escalation Schedule Triggers
 Launches: NEW Fargate Task
   ↓
 Worker Container:
-  1. Load wave + campaign from DB
+  1. Load cycle + campaign from DB
   2. Query data source
   3. Filter records by mode
   4. Check verification status
   5. Send notifications
-  6. Update wave stats
+  6. Update cycle stats
   7. Terminate
   ↓
 Container destroyed (logs in CloudWatch)
@@ -491,16 +491,16 @@ Campaign C → Container 3 ✅ (Unaffected by B's failure!)
 
 **Scenario 2: Template Error**
 ```
-Wave X, Escalation 1 → Container 1 ✅ (Success)
-Wave X, Escalation 2 → Container 2 💥 (Template syntax error)
-Wave X, Escalation 3 → Container 3 ✅ (Still runs after retry!)
+Cycle X, Escalation 1 → Container 1 ✅ (Success)
+Cycle X, Escalation 2 → Container 2 💥 (Template syntax error)
+Cycle X, Escalation 3 → Container 3 ✅ (Still runs after retry!)
 ```
 
 **Scenario 3: Memory Exhaustion**
 ```
-Small Wave (100 records) → Container 1 ✅ (500 MB used)
-Huge Wave (10k records) → Container 2 💥 (OOM killed)
-Other Waves → Containers 3,4,5 ✅ (Unaffected!)
+Small Cycle (100 records) → Container 1 ✅ (500 MB used)
+Huge Cycle (10k records) → Container 2 💥 (OOM killed)
+Other Cycles → Containers 3,4,5 ✅ (Unaffected!)
 ```
 
 ### Development
@@ -997,7 +997,7 @@ class CampaignResponse(BaseModel):
 - [ ] Campaign validation logic
 - [ ] Integration tests
 
-### Phase 3: Wave Execution (3 weeks)
+### Phase 3: Cycle Execution (3 weeks)
 - [ ] Cycle creation and management
 - [ ] Data ingestion pipeline
 - [ ] Verification detection logic
@@ -1024,7 +1024,7 @@ class CampaignResponse(BaseModel):
 ### Phase 6: Polish & Launch (1 week)
 - [ ] Minimal management UI (optional)
   - [ ] Campaign list/create/edit
-  - [ ] Wave status viewer
+  - [ ] Cycle status viewer
   - [ ] Notification history
   - [ ] Simple HTML templates (FastAPI + Jinja2) or SPA
 - [ ] Verification API and simple verification page
@@ -1050,7 +1050,7 @@ FROM base as api
 COPY src/ ./src/
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
-# Wave Worker stage
+# Cycle Worker stage
 FROM base as worker
 COPY src/ ./src/
 ENV MODE=worker
@@ -1074,7 +1074,7 @@ uv run fastapi dev src/main.py
 **Worker Testing:**
 ```bash
 # Test worker locally
-WAVE_ID=wave-123 ESCALATION_LEVEL=1 uv run python -m src.workers.cycle_worker
+CYCLE_ID=cycle-123 ESCALATION_LEVEL=1 uv run python -m src.workers.cycle_worker
 
 # Or deploy worker to ECS dev and trigger via EventBridge
 ```
@@ -1084,10 +1084,10 @@ WAVE_ID=wave-123 ESCALATION_LEVEL=1 uv run python -m src.workers.cycle_worker
 ```python
 # src/integrations/schedulers/eventbridge.py
 
-def create_escalation_schedule(wave_id: str, escalation_level: int, trigger_time: datetime):
+def create_escalation_schedule(cycle_id: str, escalation_level: int, trigger_time: datetime):
     """Create one-time schedule that launches ECS Fargate Task."""
     
-    schedule_name = f"wave-{wave_id}-esc-{escalation_level}"
+    schedule_name = f"cycle-{cycle_id}-esc-{escalation_level}"
     
     client.create_schedule(
         Name=schedule_name,
@@ -1115,12 +1115,12 @@ def create_escalation_schedule(wave_id: str, escalation_level: int, trigger_time
                 "TaskCount": 1,
                 "EnableExecuteCommand": False,
                 
-                # Pass wave info to container
+                # Pass cycle info to container
                 "Overrides": {
                     "ContainerOverrides": [{
                         "Name": "echo-worker",
                         "Environment": [
-                            {"Name": "WAVE_ID", "Value": wave_id},
+                            {"Name": "CYCLE_ID", "Value": cycle_id},
                             {"Name": "ESCALATION_LEVEL", "Value": str(escalation_level)}
                         ]
                     }]
@@ -1143,31 +1143,31 @@ def create_escalation_schedule(wave_id: str, escalation_level: int, trigger_time
     )
 ```
 
-### Wave Worker Implementation
+### Cycle Worker Implementation
 
 ```python
 # src/workers/cycle_worker.py
 
 import os
 import sys
-from src.services.wave_service import execute_escalation
+from src.services.cycle_service import execute_escalation
 from src.core.logging import setup_logging
 
 def main():
     """Entry point for cycle worker container."""
     
     # Get environment variables
-    wave_id = os.environ.get("WAVE_ID")
+    cycle_id = os.environ.get("CYCLE_ID")
     escalation_level = int(os.environ.get("ESCALATION_LEVEL", "1"))
     
-    if not wave_id:
-        print("ERROR: WAVE_ID environment variable required", file=sys.stderr)
+    if not cycle_id:
+        print("ERROR: CYCLE_ID environment variable required", file=sys.stderr)
         sys.exit(1)
     
     # Setup logging (CloudWatch)
     logger = setup_logging(
         service="cycle-worker",
-        wave_id=wave_id,
+        cycle_id=cycle_id,
         escalation_level=escalation_level
     )
     
@@ -1181,7 +1181,7 @@ def main():
         sys.exit(0)
         
     except Exception as e:
-        logger.error(f"Wave worker failed: {e}", exc_info=True)
+        logger.error(f"Cycle worker failed: {e}", exc_info=True)
         sys.exit(1)  # Non-zero exit = failure (triggers retry if configured)
 
 if __name__ == "__main__":
@@ -1191,22 +1191,22 @@ if __name__ == "__main__":
 ### Error Handling and Isolation
 
 ```python
-# src/services/wave_service.py
+# src/services/cycle_service.py
 
-def execute_escalation(wave_id: str, escalation_level: int):
+def execute_escalation(cycle_id: str, escalation_level: int):
     """Execute escalation in isolated container.
     
-    Errors in this function only affect THIS wave/escalation.
-    Other waves/campaigns continue normally.
+    Errors in this function only affect THIS cycle/escalation.
+    Other cycles/campaigns continue normally.
     """
     
     try:
-        # 1. Load wave and campaign
-        wave = get_wave(wave_id)
-        campaign = get_campaign(wave.campaign_id)
+        # 1. Load cycle and campaign
+        cycle = get_cycle(cycle_id)
+        campaign = get_campaign(cycle.campaign_id)
         
     except RecordNotFound as e:
-        logger.error(f"Wave or campaign not found: {e}")
+        logger.error(f"Cycle or campaign not found: {e}")
         raise  # Fatal error, don't retry
     
     try:
@@ -1224,7 +1224,7 @@ def execute_escalation(wave_id: str, escalation_level: int):
         filtered_records = apply_mode_filter(all_records, campaign.mode, campaign.mode_config)
         
         # 4. Check verification status
-        unverified_records = [r for r in filtered_records if not is_verified(r, wave.start_date)]
+        unverified_records = [r for r in filtered_records if not is_verified(r, cycle.start_date)]
         
     except Exception as e:
         logger.error(f"Processing error: {e}")
@@ -1241,8 +1241,8 @@ def execute_escalation(wave_id: str, escalation_level: int):
         notify_campaign_owner(campaign.owner_email, error=e)
         raise  # Will trigger retry
     
-    # 6. Update wave stats
-    update_wave_stats(wave_id, len(unverified_records))
+    # 6. Update cycle stats
+    update_cycle_stats(cycle_id, len(unverified_records))
     
     logger.info(f"Escalation complete: {len(unverified_records)} notifications sent")
 ```
@@ -1277,7 +1277,7 @@ resource "aws_ecs_service" "echo_api" {
   }
 }
 
-# Wave Worker Task Definition (On-Demand)
+# Cycle Worker Task Definition (On-Demand)
 resource "aws_ecs_task_definition" "echo_cycle_worker" {
   family                   = "echo-cycle-worker"
   network_mode             = "awsvpc"
@@ -1402,13 +1402,13 @@ resource "aws_iam_role_policy" "eventbridge_ecs" {
 **Verification Detection:**
 ```python
 # A campaign is "verified" if it has run recently
-def is_verified(campaign_record, wave_start_date):
+def is_verified(campaign_record, cycle_start_date):
     """Campaign is verified if it ran in the last 90 days."""
 
     if not campaign_record.last_run_at:
         return False  # Never run
 
-    days_since_run = (wave_start_date - campaign_record.last_run_at).days
+    days_since_run = (cycle_start_date - campaign_record.last_run_at).days
     return days_since_run <= 90  # Stale after 90 days
 ```
 
@@ -1505,7 +1505,7 @@ def is_verified(campaign_record, wave_start_date):
 ECHO provides an API for tracking verifications (regardless of where they happen):
 
 ```python
-# POST /api/waves/{wave_id}/records/{record_id}/verify
+# POST /api/cycles/{cycle_id}/records/{record_id}/verify
 {
   "verified_by": "alice@company.com",
   "comment": "Reviewed and confirmed current",
@@ -1515,7 +1515,7 @@ ECHO provides an API for tracking verifications (regardless of where they happen
 # Response
 {
   "id": "verification-uuid",
-  "wave_id": "wave-123",
+  "cycle_id": "cycle-123",
   "record_id": "service-456",
   "verified_by": "alice@company.com",
   "verified_at": "2024-01-15T10:30:00Z",
@@ -1528,7 +1528,7 @@ ECHO provides an API for tracking verifications (regardless of where they happen
 ECHO includes a minimal verification page for cases where no editing is needed:
 
 ```
-URL: https://echo.company.com/verify/{wave_id}/{record_id}
+URL: https://echo.company.com/verify/{cycle_id}/{record_id}
 
 Shows:
 ┌─────────────────────────────────────────────┐
@@ -1585,7 +1585,7 @@ URLs are embedded directly in the template content:
 -- Verification tracking
 CREATE TABLE verifications (
   id UUID PRIMARY KEY,
-  wave_id UUID REFERENCES waves(id),
+  cycle_id UUID REFERENCES cycles(id),
   record_id VARCHAR(255) NOT NULL,  -- object_id from source
 
   -- Who and when
@@ -1601,7 +1601,7 @@ CREATE TABLE verifications (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_verifications_wave ON verifications(wave_id);
+CREATE INDEX idx_verifications_cycle ON verifications(cycle_id);
 CREATE INDEX idx_verifications_record ON verifications(record_id);
 CREATE INDEX idx_verifications_verified_at ON verifications(verified_at);
 ```
@@ -1609,8 +1609,8 @@ CREATE INDEX idx_verifications_verified_at ON verifications(verified_at);
 ### Verification Detection (Updated)
 
 ```python
-def is_verified(record, wave_start_date):
-    """Check if record was verified since wave started.
+def is_verified(record, cycle_start_date):
+    """Check if record was verified since cycle started.
 
     Checks multiple sources (in order):
     1. Explicit verification in ECHO
@@ -1621,7 +1621,7 @@ def is_verified(record, wave_start_date):
     # Tier 1: Explicit verification via ECHO API
     verification = get_verification(
         record_id=record.object_id,
-        since=wave_start_date
+        since=cycle_start_date
     )
     if verification:
         return True
@@ -1629,16 +1629,16 @@ def is_verified(record, wave_start_date):
     # Tier 2: Timestamp in source data
     if record.source_data.get("last_verified"):
         last_verified = parse_datetime(record.source_data["last_verified"])
-        if last_verified >= wave_start_date:
+        if last_verified >= cycle_start_date:
             return True
 
     if record.source_data.get("last_updated"):
         last_updated = parse_datetime(record.source_data["last_updated"])
-        if last_updated >= wave_start_date:
+        if last_updated >= cycle_start_date:
             return True
 
     # Tier 3: Hash change (any field changed = verified)
-    if record_hash_changed(record, wave_start_date):
+    if record_hash_changed(record, cycle_start_date):
         return True
 
     return False
@@ -1648,9 +1648,9 @@ def is_verified(record, wave_start_date):
 
 ```python
 # Verify a record
-@app.post("/api/waves/{wave_id}/records/{record_id}/verify")
+@app.post("/api/cycles/{cycle_id}/records/{record_id}/verify")
 async def verify_record(
-    wave_id: str,
+    cycle_id: str,
     record_id: str,
     verification: VerificationCreate,
     user = Depends(get_current_user)
@@ -1658,7 +1658,7 @@ async def verify_record(
     """Mark record as verified."""
 
     result = await verification_service.create_verification(
-        wave_id=wave_id,
+        cycle_id=cycle_id,
         record_id=record_id,
         verified_by=user["email"],
         verification_type=verification.type,
@@ -1669,19 +1669,19 @@ async def verify_record(
     return result
 
 # Get verification page (simple UI)
-@app.get("/verify/{wave_id}/{record_id}")
-async def verification_page(wave_id: str, record_id: str):
+@app.get("/verify/{cycle_id}/{record_id}")
+async def verification_page(cycle_id: str, record_id: str):
     """Show simple verification page."""
 
-    wave = await get_wave(wave_id)
-    campaign = await get_campaign(wave.campaign_id)
+    cycle = await get_cycle(cycle_id)
+    campaign = await get_campaign(cycle.campaign_id)
 
     # Fetch record from data source
     data_source = create_data_source(campaign.data_source)
     record = await data_source.get_record(record_id)
 
     return templates.TemplateResponse("verification/simple.html", {
-        "wave": wave,
+        "cycle": cycle,
         "campaign": campaign,
         "record": record
     })
