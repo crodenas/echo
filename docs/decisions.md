@@ -1371,6 +1371,203 @@ Option C is likely the simplest path — it retains per-campaign templates and a
 
 ---
 
+### Decision #17: Data Source Credentials Storage
+
+**Question:** How should ECHO securely store credentials for data source connections?
+
+**Selected Option (MVP):** AWS Systems Manager Parameter Store with SecureString references
+
+**Date:** 2026-02-23
+
+**Implementation:**
+
+**Campaign Configuration Format:**
+```json
+{
+  "data_source_config": {
+    "type": "postgresql",
+    "host": "db.example.com",
+    "port": 5432,
+    "database": "inventory",
+    "query": "SELECT * FROM echo_services_view",
+    "credentials_ref": "arn:aws:ssm:us-east-1:123456789:parameter/echo/datasources/inventory-db"
+  }
+}
+```
+
+**Parameter Store Structure:**
+```
+/echo/datasources/inventory-db
+{
+  "username": "echo_readonly",
+  "password": "********"
+}
+```
+
+**Access Pattern:**
+```python
+# src/integrations/credentials.py
+import boto3
+import json
+
+class CredentialsManager:
+    def __init__(self):
+        self.ssm_client = boto3.client('ssm')
+        self._cache = {}  # Simple in-memory cache
+
+    def get_credentials(self, credentials_ref: str) -> dict:
+        """Fetch credentials from Parameter Store with caching."""
+
+        # Check cache
+        if credentials_ref in self._cache:
+            return self._cache[credentials_ref]
+
+        # Extract parameter name from ARN
+        # arn:aws:ssm:region:account:parameter/path → /path
+        param_name = credentials_ref.split("parameter")[-1]
+
+        # Fetch from Parameter Store
+        response = self.ssm_client.get_parameter(
+            Name=param_name,
+            WithDecryption=True  # Decrypt SecureString
+        )
+
+        # Parse JSON credentials
+        credentials = json.loads(response['Parameter']['Value'])
+
+        # Cache for 1 hour
+        self._cache[credentials_ref] = credentials
+
+        return credentials
+
+# Usage in data source connector
+credentials_manager = CredentialsManager()
+
+async def connect_to_data_source(config: dict):
+    """Connect to data source using credentials from Parameter Store."""
+
+    # Get credentials
+    creds = credentials_manager.get_credentials(config['credentials_ref'])
+
+    # Build connection string
+    connection_string = f"postgresql://{creds['username']}:{creds['password']}@{config['host']}:{config['port']}/{config['database']}"
+
+    # Connect
+    conn = await asyncpg.connect(connection_string)
+    return conn
+```
+
+**Campaign Creation Workflow:**
+
+1. **Admin creates Parameter Store entry:**
+   ```bash
+   aws ssm put-parameter \
+     --name /echo/datasources/inventory-db \
+     --type SecureString \
+     --value '{"username": "echo_readonly", "password": "secure_password"}' \
+     --description "ECHO readonly credentials for inventory database"
+   ```
+
+2. **Campaign owner creates campaign:**
+   - UI provides input for data source configuration
+   - User enters host, port, database, query
+   - User selects credentials from dropdown of available Parameter Store paths
+   - Campaign stores ARN reference (not actual credentials)
+
+**Security Benefits:**
+- **Encrypted at rest** - SecureString type uses AWS KMS encryption
+- **Encrypted in transit** - TLS between ECHO and Parameter Store
+- **No credentials in database** - Only ARN references stored
+- **IAM-controlled access** - ECHO service principal needs specific permissions
+- **Audit trail** - CloudTrail logs all parameter access
+- **Rotation support** - Update parameter value without changing campaigns
+
+**IAM Policy for ECHO Service:**
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ssm:GetParameter",
+        "ssm:GetParameters"
+      ],
+      "Resource": "arn:aws:ssm:us-east-1:123456789:parameter/echo/datasources/*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "kms:Decrypt"
+      ],
+      "Resource": "arn:aws:kms:us-east-1:123456789:key/echo-ssm-key"
+    }
+  ]
+}
+```
+
+**Validation at Campaign Creation:**
+```python
+async def validate_campaign(campaign_data):
+    """Validate campaign configuration including credentials access."""
+
+    # Validate credentials reference
+    credentials_ref = campaign_data['data_source_config']['credentials_ref']
+
+    try:
+        # Test credentials access
+        credentials_manager.get_credentials(credentials_ref)
+    except Exception as e:
+        raise ValidationError(f"Cannot access credentials: {str(e)}")
+
+    # Test data source connection
+    try:
+        conn = await connect_to_data_source(campaign_data['data_source_config'])
+        # Test query execution
+        await conn.fetch(campaign_data['data_source_config']['query'])
+        await conn.close()
+    except Exception as e:
+        raise ValidationError(f"Cannot connect to data source: {str(e)}")
+```
+
+**Rationale:**
+- **AWS-native solution** - No external secrets manager needed
+- **Simple integration** - Boto3 client, straightforward API
+- **Cost-effective** - $0.05 per 10,000 API calls (Parameter Store standard tier)
+- **Sufficient for MVP** - Handles all credential types (database, API keys, etc.)
+- **Familiar to AWS users** - Standard AWS service
+- **Good security posture** - Encryption, audit, IAM control
+
+**Implications:**
+- Campaign creators need list/describe permissions on Parameter Store
+- ECHO service principal needs GetParameter permission
+- Credentials must be created before campaign creation
+- UI should validate credentials_ref accessibility
+- Cache credentials in-memory to reduce API calls
+
+**Deferred to MVP+:**
+- **AWS Secrets Manager** - Alternative with automatic rotation support
+- **Rotation automation** - Trigger campaign validation when credentials rotate
+- **Credential lifecycle management** - UI for creating/updating parameters
+- **Per-campaign credential scoping** - Separate parameters per campaign
+- **Credential testing endpoint** - API to test credentials before campaign creation
+
+**Alternative Considered: AWS Secrets Manager**
+```json
+{
+  "credentials_ref": "arn:aws:secretsmanager:us-east-1:123456789:secret:echo/datasources/inventory-db"
+}
+```
+
+**Why Parameter Store for MVP:**
+- Simpler API (fewer concepts)
+- Lower cost for MVP scale
+- Sufficient security features
+- Can migrate to Secrets Manager later if automatic rotation needed
+- Parameter Store SecureString provides same encryption as Secrets Manager
+
+---
+
 ### Decision #15: Terminology — Campaign Execution Instance
 
 **Question:** What do we call a single execution instance of a campaign?
@@ -1396,7 +1593,7 @@ Option C is likely the simplest path — it retains per-campaign templates and a
 
 ## Summary
 
-### All Decisions at a Glance (UPDATED 2026-02-18)
+### All Decisions at a Glance (UPDATED 2026-02-23)
 
 | # | Question | MVP Decision | Deferred |
 |---|----------|--------------|----------|
@@ -1416,6 +1613,7 @@ Option C is likely the simplest path — it retains per-campaign templates and a
 | 14 | Data Source Types | **PostgreSQL only** | MySQL, REST API, HTTP, etc. |
 | 15 | Terminology | **"Cycle" (not "wave")** | — |
 | 16 | Notification Delivery | **Direct send from workers** | Outbox pattern, cross-campaign digest, mixed record types |
+| 17 | Credentials Storage | **Parameter Store SecureString references** | Secrets Manager, rotation automation |
 
 **Bold** = Simplified for MVP
 ✅ = Kept in MVP (complexity manageable)

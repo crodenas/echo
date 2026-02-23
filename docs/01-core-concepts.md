@@ -87,9 +87,15 @@ A **Record** represents a single resource that needs verification.
 - **Verification Status**: Verified, unverified, or stale
 
 **Verification States:**
-- **Verified**: Confirmed accurate in current cycle
-- **Unverified**: Not yet confirmed in current cycle
-- **Stale**: Not verified within defined time threshold
+- **Verified**: Confirmed accurate in current cycle (record's `last_verified` timestamp >= cycle start date)
+- **Unverified**: Not yet confirmed in current cycle (record's `last_verified` timestamp < cycle start date or NULL)
+- **Stale**: Not verified within defined time threshold (configurable staleness period)
+
+**Verification Detection (see Decision #1):**
+- **MVP**: Timestamp-based detection (requires `last_verified` field in data source)
+- **MVP+**: Hash-based detection for data sources without timestamp support
+- At each escalation, ECHO re-queries the data source and compares `last_verified` timestamps against cycle start date
+- No need to explicitly set records to "unverified" at cycle start - verification is determined by comparing timestamps at runtime
 
 **Example:**
 ```json

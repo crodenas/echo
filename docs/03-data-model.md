@@ -84,15 +84,24 @@ CREATE TABLE campaigns (
 
   -- Data source configuration
   data_source_type VARCHAR(50) NOT NULL,  -- 'sql', 'api', 'http'
-  data_source_config JSONB NOT NULL,      -- Connection details
+  data_source_config JSONB NOT NULL,      -- Connection details and credentials reference
+  -- Format: {"host": "...", "database": "...", "query": "...", "credentials_ref": "arn:aws:ssm:..."}
+  -- See Decision #17 for credentials storage strategy
 
   -- Scheduling
   campaign_schedule VARCHAR(100) NOT NULL,  -- AWS cron expression (when to start cycles)
+  -- MVP: Raw AWS cron format with validation and presets in UI
+  -- UI provides common presets: Monthly, Quarterly, Semi-Annually, Annually
+  -- Advanced users can use custom cron syntax
   escalation_rules JSONB NOT NULL,          -- Array of {level, delay_days, recipients} (escalations within cycle)
 
   -- Notification configuration
   notification_templates JSONB NOT NULL,
-  notification_channels VARCHAR[] NOT NULL,  -- ['email', 'teams', 'slack']
+  -- Format: {"email": "template_name", "teams": "template_name", "slack": "template_name"}
+  -- Email template is REQUIRED, others are optional
+  -- Channels are enabled if: (1) template exists AND (2) delivery mechanism configured
+  -- MVP: Email only (teams/slack deferred to MVP+)
+  notification_channels VARCHAR[] NOT NULL,  -- ['email', 'teams', 'slack'] - enabled channels
 
   -- Status
   enabled BOOLEAN DEFAULT true,

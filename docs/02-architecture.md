@@ -301,18 +301,24 @@ await notify(manager.InternetEmailAddress, records)
 
 **Performance Optimization:**
 - **Aggressive caching (12 hours)** - Employee API only refreshes every 24 hours
-- Time-based cache expiration (optional: align with API refresh time if known)
+- **Known refresh window:** Employee data is updated daily around 9:00 AM - 10:30 AM UTC
+- **Cache expiration strategy:** Expire cache daily at 10:30 AM UTC to align with API refresh
+  - Ensures fresh data after API refresh completes
+  - Maintains high cache hit ratio throughout the day
+  - Example: Cache populated at 11 AM UTC expires at 10:30 AM UTC next day (~23.5 hours)
 - Batch lookups when processing multiple recipients
 - Async HTTP client with connection pooling
 - Fresh lookup at each escalation level (per Decision #12) - but from cache if available
-- **Cache hit ratio:** Expected >95% for typical campaign cycles
+- **Cache hit ratio:** Expected >95% for typical campaign cycles with aligned expiration
 
 **Error Handling:**
 - Missing employee: Log warning, skip recipient
 - Missing manager: Stop hierarchy traversal gracefully
 - API unavailable: Retry with exponential backoff
 - Cache failures: Fall back to direct API calls
-- Email bounces (departed employees): Acceptable - notification delivery will fail and be logged
+- **Email delivery failures:** Track SMTP send failures (connection/authentication errors)
+- **Departed employees:** Acceptable - employee may appear in API for up to 24 hours after departure, email delivery will fail and be logged as undeliverable
+- **No bounce inbox:** ECHO does not receive bounced emails (no inbox configured), but can assume valid email if recipient exists in employee feed
 
 **Operational Constraints:**
 - Employee data refresh cycle (24 hours) means recently departed employees may still appear in API
@@ -415,7 +421,9 @@ await notify(manager.InternetEmailAddress, records)
 
 4. **Escalation Policies**
    - Interface: `EscalationPolicy` protocol
-   - Implement: Linear, exponential, custom
+   - MVP: Simple declarative rules with contact field DSL (e.g., `owner`, `owner.manager`, `owner.manager.manager`)
+   - Future: Custom escalation logic if needed (likely not necessary - DSL is flexible enough)
+
 
 ## Deployment Architecture (AWS)
 
