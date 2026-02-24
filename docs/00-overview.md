@@ -44,21 +44,27 @@ ECHO provides **Notification-as-a-Service** for enterprise teams:
 
 ## Use Cases
 
-### Service Verification (SVT Mode)
-Regular verification campaigns for service metadata:
-- Send notifications at defined intervals
-- Escalate to managers if no response
-- Continue until all services verified
+ECHO supports a unified campaign model where the only difference between use cases is the **record selection criteria** at cycle execution time. All campaigns follow the same workflow: schedule cycles, query data source, filter records, send notifications, escalate as needed.
 
-### Automated Review (AVT Mode)
-Periodic review cycles with time-based triggers:
-- Monthly or quarterly verification schedules
-- Contact rotation based on calendar
+### Time-Based Verification Campaigns
+Verify resource metadata on a regular schedule:
+- **Use case**: Quarterly service inventory review, annual database verification
+- **Record selection**: Include records where `last_verified` is older than cycle start date
+- **Example**: "Verify all production services every quarter"
 
-### Contact Validation (CVT Mode)
-Monitor and alert on missing contact information:
-- Detect resources without assigned contacts
-- Notify owners to update contact assignments
+### Contact-Based Verification Campaigns
+Monitor and remediate contact data quality:
+- **Use case**: Detect and fix invalid or missing contact assignments
+- **Record selection**: Include records where contact fields fail validation (e.g., not in employee directory)
+- **Example**: "Notify owners when service contacts are invalid or missing"
+
+### Combined Campaigns
+Use multiple selection criteria simultaneously:
+- **Use case**: Verify both data accuracy and contact validity
+- **Record selection**: Include records meeting any configured filter (time-based OR contact-based)
+- **Example**: "Verify services quarterly AND whenever contacts become invalid"
+
+**Note**: These are not separate "modes" but different configurations of the same campaign system. Campaign owners define selection filters that determine which records need action at each cycle execution.
 
 ## Design Principles
 
@@ -85,3 +91,5 @@ Review the following design documents:
 3. [Data Model](03-data-model.md) - Data requirements and schemas
 4. [Workflows](04-workflows.md) - How campaigns execute
 5. [Open Questions](06-open-questions.md) - Design decisions to resolve
+6. [Record Filters](07-record-filters.md) - Campaign record selection strategies
+7. [Employee API Integration](08-employee-api-integration.md) - Contact validation via employee directory

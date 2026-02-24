@@ -24,6 +24,10 @@ This document outlines the technical approach and development roadmap for ECHO.
 - **boto3** - AWS SES for email
 - **aiohttp** - Async HTTP client for webhooks (MVP+: Teams, Slack)
 
+### External Integrations
+- **httpx** - Async HTTP client for Employee API (OData)
+- **authlib** - OAuth2 client for MS Entra authentication
+
 ### Template Engine
 - **Jinja2** - HTML and text template rendering
 
@@ -92,6 +96,10 @@ echo/
 │   │   ├── notifications/
 │   │   │   └── email.py              # Email channel (SES) - MVP only
 │   │   │   # Future: base.py (protocol), teams.py, slack.py
+│   │   ├── employee_api/
+│   │   │   ├── client.py             # OData client for employee directory
+│   │   │   ├── oauth2.py             # MS Entra OAuth2 authentication
+│   │   │   └── models.py             # Employee data models
 │   │   └── schedulers/
 │   │       ├── base.py               # Scheduler protocol
 │   │       └── eventbridge.py        # AWS EventBridge implementation
@@ -102,6 +110,7 @@ echo/
 │   │       # Future: ../teams/, ../slack/
 │   ├── utils/                        # Utility modules
 │   │   ├── verification.py           # Verification detection logic
+│   │   ├── filters.py                # Record filter implementations
 │   │   ├── grouping.py               # Notification grouping
 │   │   └── aws_cron.py               # AWS cron utilities
 │   └── main.py                       # FastAPI application entry
@@ -289,6 +298,13 @@ DATABASE_URL=postgresql+asyncpg://echo:password@echo-dev.rds.amazonaws.com:5432/
 # Scheduler (AWS EventBridge dev group)
 SCHEDULER_GROUP=dev
 AWS_REGION=us-east-1
+
+# Employee API (OData - for contact validation)
+EMPLOYEE_API_ENABLED=true
+EMPLOYEE_API_ENVIRONMENT=dev
+EMPLOYEE_API_CREDENTIALS_SECRET_ARN=arn:aws:secretsmanager:us-east-1:...:secret:echo/employee-api/dev
+EMPLOYEE_API_BATCH_SIZE=20
+EMPLOYEE_API_CACHE_TTL=3600
 
 # Azure AD (dev app registration)
 AZURE_TENANT_ID=your-tenant-id
@@ -995,25 +1011,64 @@ class CampaignResponse(BaseModel):
 - [ ] **PostgreSQL data source connector (MVP - single connector)**
 - [ ] EventBridge scheduler integration
 - [ ] Campaign validation logic
+- [ ] **Record filter framework** (time-based, contact validity, composite)
 - [ ] Integration tests
 
-### Phase 3: Cycle Execution (3 weeks)
+### Phase 3: Employee API Integration (1.5 weeks)
+**Purpose:** Contact validation via employee directory for CVT campaigns
+
+- [ ] **OData client implementation**
+  - [ ] OAuth2 token management with MS Entra
+  - [ ] Token caching and automatic refresh
+  - [ ] Single email validation endpoint
+  - [ ] Batch email validation (up to 20 per request)
+  - [ ] Employee details lookup (for manager escalation)
+- [ ] **Contact validity filter**
+  - [ ] Filter implementation using employee API
+  - [ ] Email normalization (uppercase handling)
+  - [ ] Validation result caching (1 hour TTL)
+- [ ] **AWS Secrets Manager integration**
+  - [ ] Store OAuth2 credentials (client_id, client_secret, tenant_id)
+  - [ ] Credential loading and rotation support
+- [ ] **Error handling and resilience**
+  - [ ] Retry logic with exponential backoff
+  - [ ] Circuit breaker for API failures
+  - [ ] Rate limiting (100 req/min)
+- [ ] **Testing**
+  - [ ] Unit tests with mocked OData responses
+  - [ ] Integration tests against dev employee API
+  - [ ] Manager email lookup tests
+- [ ] **Monitoring and alerting**
+  - [ ] API call metrics (success rate, latency)
+  - [ ] Token refresh tracking
+  - [ ] Cache hit rate monitoring
+
+**Deliverables:**
+- Employee API client (`src/integrations/employee_api/client.py`)
+- OAuth2 authentication module (`src/integrations/employee_api/oauth2.py`)
+- Contact validity record filter (`src/utils/filters.py`)
+- Integration tests with dev environment
+- Documentation for configuring credentials
+
+### Phase 4: Cycle Execution (3 weeks)
 - [ ] Cycle creation and management
 - [ ] Data ingestion pipeline
-- [ ] Verification detection logic
+- [ ] **Record filter evaluation** (apply filters at cycle execution)
+- [ ] Verification detection logic (time-based)
 - [ ] Record management
 - [ ] Escalation engine
 - [ ] Notification queue builder
 
-### Phase 4: Notification System (2 weeks)
+### Phase 5: Notification System (2 weeks)
 - [ ] Email channel (SES) — direct implementation, no channel abstraction
 - [ ] Jinja2 template rendering
 - [ ] Recipient grouping (one email per recipient per escalation)
+- [ ] **Manager escalation resolution** (use employee API `SupervisorEmail`)
 - [ ] Notification delivery and retry logic
 - [ ] Delivery tracking
 - [ ] Worker lazy scheduling (create next escalation schedule if unverified remain)
 
-### Phase 5: Production Readiness (2 weeks)
+### Phase 6: Production Readiness (2 weeks)
 - [ ] AWS EventBridge integration
 - [ ] Error handling and monitoring
 - [ ] Comprehensive testing
@@ -1021,7 +1076,7 @@ class CampaignResponse(BaseModel):
 - [ ] Deployment automation
 - [ ] Performance optimization
 
-### Phase 6: Polish & Launch (1 week)
+### Phase 7: Polish & Launch (1 week)
 - [ ] Minimal management UI (optional)
   - [ ] Campaign list/create/edit
   - [ ] Cycle status viewer
@@ -1032,6 +1087,476 @@ class CampaignResponse(BaseModel):
 - [ ] Reporting and dashboards
 - [ ] Final testing
 - [ ] Production deployment
+
+## Employee API Integration Architecture
+
+### Overview
+
+ECHO integrates with the Lilly Employee Directory OData API for contact validation in CVT (Contact Validation) campaigns. This enables automatic detection of invalid or terminated employee contacts.
+
+**API Details:**
+- **Type:** OData v4
+- **Dev:** `https://gateway-intranet.apim-dev.lilly.com/workforce_fastapi/GWF_Workers`
+- **Prod:** `https://gateway-intranet.apim.lilly.com/workforce_fastapi/GWF_Workers`
+- **Auth:** MS Entra OAuth2 (client credentials flow)
+
+### Authentication Flow
+
+```python
+# src/integrations/employee_api/oauth2.py
+
+class OAuth2TokenManager:
+    """Manages OAuth2 tokens with caching and auto-refresh."""
+
+    def __init__(self, credentials: dict):
+        self.client_id = credentials["client_id"]
+        self.client_secret = credentials["client_secret"]
+        self.tenant_id = credentials["tenant_id"]
+        self.token_endpoint = f"https://login.microsoftonline.com/{self.tenant_id}/oauth2/v2.0/token"
+        self.scope = "api://gateway-intranet/.default"
+
+        self.token_cache: Optional[dict] = None
+        self.lock = asyncio.Lock()
+
+    async def get_access_token(self) -> str:
+        """Get cached token or request new one."""
+        async with self.lock:
+            # Check cache
+            if self.token_cache and not self._is_expired():
+                return self.token_cache["access_token"]
+
+            # Request new token
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    self.token_endpoint,
+                    data={
+                        "grant_type": "client_credentials",
+                        "client_id": self.client_id,
+                        "client_secret": self.client_secret,
+                        "scope": self.scope,
+                    }
+                )
+                response.raise_for_status()
+                token_data = response.json()
+
+                # Cache with expiration (refresh 5 min early)
+                expires_in = token_data.get("expires_in", 3599)
+                self.token_cache = {
+                    "access_token": token_data["access_token"],
+                    "expires_at": datetime.utcnow() + timedelta(seconds=expires_in - 300)
+                }
+
+                return token_data["access_token"]
+```
+
+### Employee Data Models
+
+```python
+# src/integrations/employee_api/models.py
+
+from datetime import date
+from typing import Optional
+from pydantic import BaseModel, Field, EmailStr
+
+
+class EmployeeBase(BaseModel):
+    """Base employee fields returned by OData API.
+
+    Note: StatusCode and TerminationDate not modeled since we filter
+    for active employees at query time (StatusCode='3' and TerminationDate=null).
+    """
+    global_id: int = Field(alias="GlobalId", description="Unique employee ID")
+    system_logon_id: str = Field(alias="SystemLogonId", description="Network username")
+    internet_email_address: EmailStr = Field(alias="InternetEmailAddress", description="Employee email")
+
+    model_config = {"populate_by_name": True}
+
+
+class Employee(EmployeeBase):
+    """Full employee record with optional fields.
+
+    All employees are guaranteed active (filtered at query time).
+    """
+
+    # Name fields (all optional - prioritize Friendly, fall back to regular)
+    first_name: Optional[str] = Field(None, alias="FirstName")
+    last_name: Optional[str] = Field(None, alias="LastName")
+    friendly_first_name: Optional[str] = Field(None, alias="FriendlyFirstName")
+    friendly_last_name: Optional[str] = Field(None, alias="FriendlyLastName")
+
+    group_code: Optional[str] = Field(None, alias="GroupCode", description="A=Employee, etc.")
+    group_description: Optional[str] = Field(None, alias="GroupDescription")
+
+    # Manager/escalation fields
+    supervisor_email: Optional[EmailStr] = Field(None, alias="SupervisorEmail")
+    supervisor_global_id: Optional[int] = Field(None, alias="SupervisorGlobalId")
+    supervisor_first_name: Optional[str] = Field(None, alias="SupervisorFirstName")
+    supervisor_last_name: Optional[str] = Field(None, alias="SupervisorLastName")
+
+    @property
+    def display_name(self) -> str:
+        """Get display name, prioritizing Friendly names over formal names.
+
+        Priority:
+        1. FriendlyFirstName + FriendlyLastName (e.g., "Chris Rodenas")
+        2. FirstName + LastName (e.g., "Christopher Rodenas")
+        3. Email address (fallback if no names available)
+
+        Examples:
+            Employee(FriendlyFirstName="Chris", FriendlyLastName="Rodenas",
+                     FirstName="Christopher", LastName="Rodenas")
+            → "Chris Rodenas"
+
+            Employee(FirstName="Christopher", LastName="Rodenas")
+            → "Christopher Rodenas"
+        """
+        # Priority 1: Friendly names
+        if self.friendly_first_name and self.friendly_last_name:
+            return f"{self.friendly_first_name} {self.friendly_last_name}"
+
+        # Priority 2: Formal names
+        if self.first_name and self.last_name:
+            return f"{self.first_name} {self.last_name}"
+
+        # Priority 3: Email (fallback)
+        return str(self.internet_email_address)
+
+    @property
+    def first_name_preferred(self) -> str:
+        """Get preferred first name (Friendly or regular)."""
+        return self.friendly_first_name or self.first_name or str(self.internet_email_address).split('@')[0]
+
+    @property
+    def last_name_preferred(self) -> str:
+        """Get preferred last name (Friendly or regular)."""
+        return self.friendly_last_name or self.last_name or ""
+
+    @property
+    def is_employee(self) -> bool:
+        """Check if this is an employee (not contractor)."""
+        return self.group_code == "A"
+
+
+class EmployeeValidationResult(BaseModel):
+    """Result of email validation.
+
+    Simple model since we filter for active at query time:
+    - is_valid=True: Active employee found
+    - is_valid=False: Employee not found OR inactive/terminated
+    """
+    email: EmailStr
+    is_valid: bool
+    employee: Optional[Employee] = None
+
+
+class ODataResponse(BaseModel):
+    """OData API response envelope."""
+    odata_count: int = Field(alias="@odata.count")
+    value: list[Employee]
+
+    model_config = {"populate_by_name": True}
+```
+
+### OData Client
+
+```python
+# src/integrations/employee_api/client.py
+
+from src.integrations.employee_api.models import Employee, EmployeeValidationResult, ODataResponse
+
+
+class EmployeeODataClient:
+    """Client for Employee Directory OData API."""
+
+    def __init__(self, config: EmployeeAPISettings):
+        self.base_url = config.base_url
+        self.token_manager = OAuth2TokenManager(credentials)
+        self.cache = TTLCache(maxsize=10000, ttl=config.cache_ttl)
+        self.http_client = httpx.AsyncClient(timeout=config.request_timeout)
+
+    async def validate_email(self, email: str) -> EmployeeValidationResult:
+        """Check if email belongs to an active employee.
+
+        Returns:
+            EmployeeValidationResult with is_valid flag and optional employee data
+        """
+        # Check cache
+        email_lower = email.lower()
+        if email_lower in self.cache:
+            return self.cache[email_lower]
+
+        # Query OData API
+        email_upper = email.upper()
+        filter_clause = f"InternetEmailAddress eq '{email_upper}'"
+
+        token = await self.token_manager.get_access_token()
+        response = await self.http_client.get(
+            self.base_url,
+            params={
+                "$filter": filter_clause,
+                "$select": "GlobalId,InternetEmailAddress,StatusCode,StatusDescription,TerminationDate,SupervisorEmail,FirstName,LastName,FriendlyFirstName,FriendlyLastName",
+                "$top": 1
+            },
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        response.raise_for_status()
+
+        # Parse OData response
+        odata_response = ODataResponse(**response.json())
+
+        # Build validation result
+        if odata_response.odata_count == 0:
+            result = EmployeeValidationResult(
+                email=email,
+                is_valid=False,
+                reason="not_found"
+            )
+        else:
+            employee = odata_response.value[0]
+            is_valid = employee.is_active
+
+            result = EmployeeValidationResult(
+                email=email,
+                is_valid=is_valid,
+                reason=None if is_valid else self._get_invalid_reason(employee),
+                employee=employee if is_valid else None
+            )
+
+        # Cache result
+        self.cache[email_lower] = result
+        return result
+
+    def _get_invalid_reason(self, employee: Employee) -> str:
+        """Determine why employee is invalid."""
+        if employee.termination_date is not None:
+            return "terminated"
+        if employee.status_code != EmployeeStatus.ACTIVE:
+            return f"inactive_status_{employee.status_code}"
+        return "unknown"
+
+    async def validate_emails_batch(self, emails: list[str]) -> dict[str, EmployeeValidationResult]:
+        """Validate up to 20 emails in a single OData query.
+
+        Returns:
+            dict mapping email to EmployeeValidationResult
+        """
+        if len(emails) > 20:
+            raise ValueError("Batch size limited to 20 (URL length)")
+
+        # Build OData IN filter
+        emails_upper = [e.upper() for e in emails]
+        email_list = "','".join(emails_upper)
+        filter_clause = f"InternetEmailAddress in ('{email_list}')"
+
+        token = await self.token_manager.get_access_token()
+        response = await self.http_client.get(
+            self.base_url,
+            params={
+                "$filter": filter_clause,
+                "$select": "GlobalId,InternetEmailAddress,StatusCode,StatusDescription,TerminationDate,SupervisorEmail,FirstName,LastName"
+            },
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        response.raise_for_status()
+
+        # Parse OData response
+        odata_response = ODataResponse(**response.json())
+
+        # Process results
+        results = {}
+        found_emails = set()
+
+        for employee in odata_response.value:
+            email_lower = employee.internet_email_address.lower()
+            found_emails.add(email_lower)
+
+            result = EmployeeValidationResult(
+                email=employee.internet_email_address,
+                is_valid=employee.is_active,
+                reason=None if employee.is_active else self._get_invalid_reason(employee),
+                employee=employee if employee.is_active else None
+            )
+            results[email_lower] = result
+            self.cache[email_lower] = result
+
+        # Mark not found as invalid
+        for email in emails:
+            email_lower = email.lower()
+            if email_lower not in found_emails:
+                result = EmployeeValidationResult(
+                    email=email,
+                    is_valid=False,
+                    reason="not_found"
+                )
+                results[email_lower] = result
+                self.cache[email_lower] = result
+
+        return results
+
+    async def get_employee(self, email: str) -> Optional[Employee]:
+        """Get full employee record.
+
+        Returns:
+            Employee model or None if not found
+        """
+        email_upper = email.upper()
+        filter_clause = f"InternetEmailAddress eq '{email_upper}'"
+
+        token = await self.token_manager.get_access_token()
+        response = await self.http_client.get(
+            self.base_url,
+            params={
+                "$filter": filter_clause,
+                "$top": 1
+            },
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        response.raise_for_status()
+
+        odata_response = ODataResponse(**response.json())
+
+        if odata_response.odata_count == 0:
+            return None
+
+        return odata_response.value[0]
+
+    async def get_manager_email(self, employee_email: str) -> Optional[str]:
+        """Get manager's email for escalation.
+
+        Returns:
+            Manager's email or None if not found/not available
+        """
+        employee = await self.get_employee(employee_email)
+        if employee:
+            return employee.supervisor_email
+        return None
+```
+
+### Record Filter Implementation
+
+```python
+# src/utils/filters.py
+
+from src.integrations.employee_api.models import EmployeeValidationResult
+
+
+class ContactValidityFilter:
+    """Filter records with invalid contacts using Employee API."""
+
+    def __init__(self, employee_client: EmployeeODataClient, contact_fields: list[str]):
+        self.employee_client = employee_client
+        self.contact_fields = contact_fields
+
+    async def should_include(self, record: dict) -> tuple[bool, dict[str, EmployeeValidationResult]]:
+        """Check if record has any invalid contacts.
+
+        Returns:
+            Tuple of (should_include, validation_results)
+            should_include: True if record should be included in notifications
+            validation_results: Dict of contact field -> validation result
+        """
+        # Collect all contact emails from record
+        contact_emails = []
+        contact_fields_present = []
+
+        for field in self.contact_fields:
+            email = record.get(field)
+            if email:
+                contact_emails.append(email)
+                contact_fields_present.append(field)
+
+        if not contact_emails:
+            return True, {}  # No contacts = invalid, include in notifications
+
+        # Batch validate all contacts
+        if len(contact_emails) <= 20:
+            results = await self.employee_client.validate_emails_batch(contact_emails)
+        else:
+            # Split into batches of 20
+            results = {}
+            for i in range(0, len(contact_emails), 20):
+                batch = contact_emails[i:i+20]
+                batch_results = await self.employee_client.validate_emails_batch(batch)
+                results.update(batch_results)
+
+        # Map results back to contact fields
+        validation_results = {}
+        for field, email in zip(contact_fields_present, contact_emails):
+            validation_results[field] = results[email.lower()]
+
+        # Include if ANY contact is invalid
+        has_invalid = any(not result.is_valid for result in validation_results.values())
+
+        return has_invalid, validation_results
+```
+
+### Configuration
+
+```python
+# src/core/config.py
+
+class EmployeeAPISettings(BaseSettings):
+    """Employee Directory API settings."""
+    model_config = SettingsConfigDict(env_prefix="EMPLOYEE_API_")
+
+    enabled: bool = True
+    environment: str = "prod"
+
+    dev_base_url: str = "https://gateway-intranet.apim-dev.lilly.com/workforce_fastapi/GWF_Workers"
+    prod_base_url: str = "https://gateway-intranet.apim.lilly.com/workforce_fastapi/GWF_Workers"
+
+    credentials_secret_arn: str
+    batch_size: int = 20
+    cache_ttl: int = 3600
+    request_timeout: int = 30
+    max_retries: int = 3
+
+    @property
+    def base_url(self) -> str:
+        return self.dev_base_url if self.environment == "dev" else self.prod_base_url
+
+class Settings(BaseSettings):
+    employee_api: EmployeeAPISettings
+```
+
+### Credentials Storage (AWS Secrets Manager)
+
+```json
+{
+  "secret_name": "echo/employee-api/prod",
+  "secret_value": {
+    "client_id": "12345678-1234-1234-1234-123456789012",
+    "client_secret": "YOUR_CLIENT_SECRET_HERE",
+    "tenant_id": "87654321-4321-4321-4321-210987654321"
+  }
+}
+```
+
+### Manager Escalation Support
+
+```python
+# src/services/notification_service.py
+
+async def resolve_escalation_recipients(
+    recipients: list[str],
+    primary_contact: str,
+    employee_client: EmployeeODataClient
+) -> list[str]:
+    """Resolve special recipients like 'owner.manager'."""
+    resolved = []
+
+    for recipient in recipients:
+        if recipient == "owner.manager":
+            manager_email = await employee_client.get_manager_email(primary_contact)
+            if manager_email:
+                resolved.append(manager_email)
+        else:
+            resolved.append(recipient)
+
+    return resolved
+```
+
+---
 
 ## Container Configuration
 

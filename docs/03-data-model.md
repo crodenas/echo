@@ -95,6 +95,14 @@ CREATE TABLE campaigns (
   -- Advanced users can use custom cron syntax
   escalation_rules JSONB NOT NULL,          -- Array of {level, delay_days, recipients} (escalations within cycle)
 
+  -- Record filtering (determines which records need action at each cycle)
+  record_filter JSONB NOT NULL DEFAULT '{
+    "filter_type": "time_based",
+    "config": {"timestamp_field": "last_verified"}
+  }',
+  -- Filter types: time_based, contact_validity, change_detection, composite
+  -- See docs/07-record-filters.md for complete specification
+
   -- Notification configuration
   notification_templates JSONB NOT NULL,
   -- Format: {"email": "template_name", "teams": "template_name", "slack": "template_name"}
@@ -127,6 +135,13 @@ CREATE TABLE campaigns (
     "query": "SELECT * FROM echo_services_view"
   },
   "campaign_schedule": "cron(0 0 1 */3 ? *)",  // Start new cycle every 3 months
+  "record_filter": {
+    "filter_type": "time_based",
+    "config": {
+      "timestamp_field": "last_verified",
+      "comparison": "before_cycle_start"
+    }
+  },
   "escalation_rules": [                         // Escalations within each cycle
     {"level": 0, "recipients": ["owner"], "delay_days": 0},
     {"level": 1, "recipients": ["owner", "system_custodian"], "delay_days": 7},
@@ -137,6 +152,40 @@ CREATE TABLE campaigns (
     "teams": "default_teams_template"
   },
   "notification_channels": ["email", "teams"],
+  "enabled": true
+}
+```
+
+**Example Campaign with Contact Validity Filter:**
+```json
+{
+  "id": "750e8400-e29b-41d4-a716-446655440001",
+  "name": "Invalid Contact Remediation",
+  "description": "Weekly notification for services with invalid contacts",
+  "data_source_type": "sql",
+  "data_source_config": {
+    "connection_string": "postgresql://...",
+    "query": "SELECT s.*, (s.owner IN (SELECT email FROM employee_directory)) AS owner_is_valid FROM services s"
+  },
+  "campaign_schedule": "cron(0 9 * * MON *)",  // Every Monday at 9am
+  "record_filter": {
+    "filter_type": "contact_validity",
+    "config": {
+      "contact_fields": ["owner", "system_custodian"],
+      "validation_source": {
+        "type": "data_source_provided",
+        "field_name_pattern": "{field}_is_valid"
+      }
+    }
+  },
+  "escalation_rules": [
+    {"level": 0, "recipients": ["owner"], "delay_days": 0},
+    {"level": 1, "recipients": ["owner", "owner.manager"], "delay_days": 3}
+  ],
+  "notification_templates": {
+    "email": "invalid_contact_email_template"
+  },
+  "notification_channels": ["email"],
   "enabled": true
 }
 ```
@@ -252,6 +301,8 @@ Notes:
 ```
 
 ## Change Detection Strategies
+
+**Note**: These strategies are implemented through the `record_filter` configuration. See [Record Filters](07-record-filters.md) for complete specification and configuration examples.
 
 ### 1. Timestamp-Based Detection
 
